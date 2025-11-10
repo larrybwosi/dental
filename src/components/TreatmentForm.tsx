@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Pill } from "lucide-react";
@@ -137,9 +137,9 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
 
   const handlePatientChange = (patientId: string) => {
     const selectedPatient = patients.find((p) => p.id === patientId);
-    const patientAppointments = appointments.filter(
-      (a) => a.patientId === patientId
-    );
+    // const patientAppointments = appointments.filter(
+    //   (a) => a.patientId === patientId
+    // );
 
     setFormData((prev) => ({
       ...prev,

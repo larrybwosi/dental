@@ -41,7 +41,7 @@ interface Appointment {
 const Navigation = () => {
   const location = useLocation();
   const [todayAppointments, setTodayAppointments] = useState(0);
-  const [notifications, setNotifications] = useState(3); // Mock notifications
+  const [notifications] = useState(3); // Mock notifications
 
   useEffect(() => {
     const storedAppointments = localStorage.getItem("dentalcare_appointments");
@@ -197,7 +197,7 @@ const Navigation = () => {
               return (
                 <Link key={item.path} to={item.path}>
                   <Button
-                    variant={isActive ? "default" : "outline-solid"}
+                    variant={isActive ? "default" : "outline"}
                     size="sm"
                     className={`flex items-center space-x-2 ${
                       isActive

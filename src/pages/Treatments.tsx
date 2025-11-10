@@ -81,6 +81,7 @@ const Treatments = () => {
       setShowAddDialog(false);
       toast.success("Treatment record added successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to add treatment record");
     }
   };
@@ -96,6 +97,7 @@ const Treatments = () => {
       setEditingTreatment(null);
       toast.success("Treatment record updated successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to update treatment record");
     }
   };
@@ -106,6 +108,7 @@ const Treatments = () => {
       loadTreatments();
       toast.success("Treatment record deleted successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to delete treatment record");
     }
   };
@@ -212,7 +215,7 @@ const Treatments = () => {
                 Record a new treatment and prescriptions for a patient.
               </DialogDescription>
             </DialogHeader>
-            <TreatmentForm onSubmit={handleAddTreatment} />
+            <TreatmentForm onSave={handleAddTreatment} onCancel={() => {}} />
           </DialogContent>
         </Dialog>
       </div>
@@ -529,8 +532,9 @@ const Treatments = () => {
           </DialogHeader>
           {editingTreatment && (
             <TreatmentForm
-              initialData={editingTreatment}
-              onSubmit={handleEditTreatment}
+              treatment={editingTreatment}
+              onSave={handleEditTreatment}
+              onCancel={() => {}}
             />
           )}
         </DialogContent>

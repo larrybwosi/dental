@@ -306,7 +306,8 @@ class DataManager {
   public exportToCSV(
     dataType: "patients" | "appointments" | "treatments"
   ): void {
-    let data: Record<string, unknown>[] = [];
+    //eslint-disable-next-line
+    let data: any[] = [];
     let filename = "";
 
     switch (dataType) {
@@ -315,7 +316,7 @@ class DataManager {
         filename = "patients";
         break;
       case "appointments":
-        data = this.getAppointments();
+        data = this.getAppointments() ;
         filename = "appointments";
         break;
       case "treatments":
@@ -408,6 +409,7 @@ class DataManager {
           const backup = JSON.parse(e.target?.result as string);
           resolve(this.importData(backup));
         } catch (error) {
+          console.log(error)
           resolve({ success: false, message: "Invalid JSON file format" });
         }
       };

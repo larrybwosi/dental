@@ -98,6 +98,7 @@ const Appointments = () => {
       setShowAddDialog(false);
       toast.success("Appointment scheduled successfully");
     } catch (error) {
+          console.log(error);
       toast.error("Failed to schedule appointment");
     }
   };
@@ -113,6 +114,7 @@ const Appointments = () => {
       setEditingAppointment(null);
       toast.success("Appointment updated successfully");
     } catch (error) {
+          console.log(error);
       toast.error("Failed to update appointment");
     }
   };
@@ -123,6 +125,7 @@ const Appointments = () => {
       loadAppointments();
       toast.success("Appointment deleted successfully");
     } catch (error) {
+          console.log(error);
       toast.error("Failed to delete appointment");
     }
   };
@@ -136,6 +139,7 @@ const Appointments = () => {
       loadAppointments();
       toast.success(`Appointment marked as ${status}`);
     } catch (error) {
+          console.log(error);
       toast.error("Failed to update appointment status");
     }
   };
@@ -236,7 +240,7 @@ const Appointments = () => {
                 Create a new appointment for a patient.
               </DialogDescription>
             </DialogHeader>
-            <AppointmentForm onSubmit={handleAddAppointment} />
+            <AppointmentForm onSave={handleAddAppointment} onCancel={()=>{}} />
           </DialogContent>
         </Dialog>
       </div>
@@ -490,8 +494,9 @@ const Appointments = () => {
           </DialogHeader>
           {editingAppointment && (
             <AppointmentForm
-              initialData={editingAppointment}
-              onSubmit={handleEditAppointment}
+              appointment={editingAppointment}
+              onSave={handleEditAppointment}
+              onCancel={()=>{}}
             />
           )}
         </DialogContent>

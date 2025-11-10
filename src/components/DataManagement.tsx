@@ -56,7 +56,6 @@ const DataManagement = () => {
     duplicatePatients: 0,
   });
   const [isValidating, setIsValidating] = useState(false);
-  const [showBackupDialog, setShowBackupDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
@@ -92,6 +91,7 @@ const DataManagement = () => {
       loadStats();
       loadBackupHistory();
     } catch (error) {
+      console.log(error);
       toast.error("Failed to export data");
     }
   };
@@ -103,6 +103,7 @@ const DataManagement = () => {
       dataManager.exportToCSV(dataType);
       toast.success(`${dataType} data exported to CSV`);
     } catch (error) {
+      console.log(error)
       toast.error(`Failed to export ${dataType} data`);
     }
   };
@@ -125,6 +126,7 @@ const DataManagement = () => {
         toast.error(result.message);
       }
     } catch (error) {
+      console.log(error);
       toast.error("Failed to import file");
     }
 

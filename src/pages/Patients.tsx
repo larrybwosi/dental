@@ -71,6 +71,7 @@ const Patients = () => {
       setShowAddDialog(false);
       toast.success("Patient added successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to add patient");
     }
   };
@@ -86,6 +87,7 @@ const Patients = () => {
       setEditingPatient(null);
       toast.success("Patient updated successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to update patient");
     }
   };
@@ -96,6 +98,7 @@ const Patients = () => {
       loadPatients();
       toast.success("Patient deleted successfully");
     } catch (error) {
+      console.log(error);
       toast.error("Failed to delete patient");
     }
   };
@@ -169,7 +172,7 @@ const Patients = () => {
                 Enter the patient's information to create a new record.
               </DialogDescription>
             </DialogHeader>
-            <PatientForm onSubmit={handleAddPatient} />
+            <PatientForm onSave={handleAddPatient} onCancel={()=>{}} />
           </DialogContent>
         </Dialog>
       </div>
@@ -404,8 +407,9 @@ const Patients = () => {
           </DialogHeader>
           {editingPatient && (
             <PatientForm
-              initialData={editingPatient}
-              onSubmit={handleEditPatient}
+              patient={editingPatient}
+              onSave={handleEditPatient}
+              onCancel={()=>{}}
             />
           )}
         </DialogContent>
