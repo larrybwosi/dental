@@ -176,7 +176,7 @@ const DataManagement = () => {
 
       {/* Storage Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-blue-50 to-blue-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -194,7 +194,7 @@ const DataManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-green-50 to-green-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -212,7 +212,7 @@ const DataManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-purple-50 to-purple-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -230,7 +230,7 @@ const DataManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-orange-50 to-orange-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>

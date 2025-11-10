@@ -162,13 +162,13 @@ const Index = () => {
   return (
     <div className="space-y-8">
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 p-8 text-white shadow-2xl">
+      <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-blue-600 via-indigo-700 to-purple-800 p-8 text-white shadow-2xl">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative z-10">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div className="space-y-4">
               <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
-                Welcome to DentalCare Pro
+                Welcome to  Dealio Dental
               </h1>
               <p className="text-xl text-blue-100 max-w-2xl">
                 Your comprehensive practice management solution. Track patients,
@@ -176,11 +176,11 @@ const Index = () => {
                 professional tools.
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-2">
-                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-xs rounded-full px-4 py-2">
                   <Activity className="h-5 w-5" />
                   <span className="font-medium">Live Dashboard</span>
                 </div>
-                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-xs rounded-full px-4 py-2">
                   <CheckCircle2 className="h-5 w-5" />
                   <span className="font-medium">Real-time Updates</span>
                 </div>
@@ -194,7 +194,7 @@ const Index = () => {
                 </Button>
               </Link>
               <Link to="/appointments">
-                <Button className="w-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20">
+                <Button className="w-full bg-white/10 backdrop-blur-xs border border-white/20 text-white hover:bg-white/20">
                   <Calendar className="h-4 w-4 mr-2" />
                   Schedule Appointment
                 </Button>
@@ -206,7 +206,7 @@ const Index = () => {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-xl transition-all duration-300">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-blue-50 to-blue-100 hover:shadow-xl transition-all duration-300">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -225,7 +225,7 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 hover:shadow-xl transition-all duration-300">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-green-50 to-green-100 hover:shadow-xl transition-all duration-300">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -246,7 +246,7 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 hover:shadow-xl transition-all duration-300">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-purple-50 to-purple-100 hover:shadow-xl transition-all duration-300">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -267,7 +267,7 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100 hover:shadow-xl transition-all duration-300">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-emerald-50 to-emerald-100 hover:shadow-xl transition-all duration-300">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -318,7 +318,7 @@ const Index = () => {
                     No appointments scheduled for today
                   </p>
                   <Link to="/appointments">
-                    <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                    <Button className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
                       <Plus className="h-4 w-4 mr-2" />
                       Schedule Appointment
                     </Button>
@@ -332,7 +332,7 @@ const Index = () => {
                   >
                     <div className="flex items-center space-x-4">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold text-sm">
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white font-semibold text-sm">
                           {getPatientInitials(appointment.patientName)}
                         </AvatarFallback>
                       </Avatar>
@@ -459,7 +459,7 @@ const Index = () => {
             {treatments.slice(0, 3).map((treatment) => (
               <div
                 key={treatment.id}
-                className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg"
+                className="flex items-center justify-between p-4 bg-linear-to-r from-gray-50 to-blue-50 rounded-lg"
               >
                 <div className="flex items-center space-x-4">
                   <div className="p-2 bg-purple-100 rounded-full">

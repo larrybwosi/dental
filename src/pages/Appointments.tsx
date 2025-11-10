@@ -224,7 +224,7 @@ const Appointments = () => {
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg">
+            <Button className="bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg">
               <Plus className="h-4 w-4 mr-2" />
               Schedule Appointment
             </Button>
@@ -243,7 +243,7 @@ const Appointments = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-blue-50 to-blue-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -261,7 +261,7 @@ const Appointments = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-green-50 to-green-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -277,7 +277,7 @@ const Appointments = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-purple-50 to-purple-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -295,7 +295,7 @@ const Appointments = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-orange-50 to-orange-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -354,7 +354,7 @@ const Appointments = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-gradient-to-br from-green-500 to-emerald-600 text-white font-semibold">
+                    <AvatarFallback className="bg-linear-to-br from-green-500 to-emerald-600 text-white font-semibold">
                       {getPatientInitials(appointment.patientName)}
                     </AvatarFallback>
                   </Avatar>
@@ -466,7 +466,7 @@ const Appointments = () => {
             {!searchTerm && statusFilter === "all" && (
               <Button
                 onClick={() => setShowAddDialog(true)}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                className="bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Schedule First Appointment

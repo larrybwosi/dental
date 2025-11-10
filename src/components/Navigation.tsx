@@ -74,12 +74,12 @@ const Navigation = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo and Brand */}
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg">
+            <div className="p-2 bg-linear-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg">
               <Activity className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                DentalCare Pro
+              <h1 className="text-xl font-bold bg-linear-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                Dental
               </h1>
               <p className="text-xs text-gray-500 -mt-1">Practice Management</p>
             </div>
@@ -97,7 +97,7 @@ const Navigation = () => {
                     variant={isActive ? "default" : "ghost"}
                     className={`flex items-center space-x-2 relative ${
                       isActive
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                        ? "bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
                         : "text-gray-600 hover:text-blue-600 hover:bg-blue-50"
                     }`}
                   >
@@ -146,7 +146,7 @@ const Navigation = () => {
                 >
                   <Avatar className="h-9 w-9">
                     <AvatarImage src="" alt="Dr. Smith" />
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold">
+                    <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white font-semibold">
                       DS
                     </AvatarFallback>
                   </Avatar>
@@ -197,11 +197,11 @@ const Navigation = () => {
               return (
                 <Link key={item.path} to={item.path}>
                   <Button
-                    variant={isActive ? "default" : "outline"}
+                    variant={isActive ? "default" : "outline-solid"}
                     size="sm"
                     className={`flex items-center space-x-2 ${
                       isActive
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
+                        ? "bg-linear-to-r from-blue-600 to-indigo-600 text-white"
                         : "text-gray-600"
                     }`}
                   >

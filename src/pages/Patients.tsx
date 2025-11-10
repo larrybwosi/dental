@@ -157,7 +157,7 @@ const Patients = () => {
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg">
+            <Button className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg">
               <Plus className="h-4 w-4 mr-2" />
               Add New Patient
             </Button>
@@ -176,7 +176,7 @@ const Patients = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-blue-50 to-blue-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -194,7 +194,7 @@ const Patients = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-green-50 to-green-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -212,7 +212,7 @@ const Patients = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-orange-50 to-orange-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -230,7 +230,7 @@ const Patients = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+        <Card className="border-0 shadow-lg bg-linear-to-br from-purple-50 to-purple-100">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -278,7 +278,7 @@ const Patients = () => {
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src="" alt={patient.name} />
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold">
+                    <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white font-semibold">
                       {getPatientInitials(patient.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -380,7 +380,7 @@ const Patients = () => {
             {!searchTerm && (
               <Button
                 onClick={() => setShowAddDialog(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add First Patient
