@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Treatments from "./pages/Treatments";
+import Payments from "./pages/Payments";
 import DataManagement from "./components/DataManagement";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
               <Route path="/patients" element={<Patients />} />
               <Route path="/appointments" element={<Appointments />} />
               <Route path="/treatments" element={<Treatments />} />
+              <Route path="/payments" element={<Payments />} />
               <Route path="/data-management" element={<DataManagement />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -23,8 +23,11 @@ import {
   Search,
   Menu,
   Database,
+  CreditCard,
+  UserCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { dataManager, Role } from "@/lib/dataManager";
 
 interface Appointment {
   id: string;
@@ -42,31 +45,48 @@ const Navigation = () => {
   const location = useLocation();
   const [todayAppointments, setTodayAppointments] = useState(0);
   const [notifications] = useState(3); // Mock notifications
+  const [role, setRole] = useState<Role>(dataManager.getCurrentRole());
 
   useEffect(() => {
-    const storedAppointments = localStorage.getItem("dentalcare_appointments");
-    if (storedAppointments) {
-      const appointments: Appointment[] = JSON.parse(storedAppointments);
+    const updateAppointments = () => {
+      const appointments = dataManager.getAppointments();
       const today = new Date().toISOString().split("T")[0];
       const todayCount = appointments.filter(
         (apt) => apt.date === today
       ).length;
       setTodayAppointments(todayCount);
-    }
+    };
+
+    updateAppointments();
+
+    const handleRoleChange = () => {
+      setRole(dataManager.getCurrentRole());
+    };
+
+    window.addEventListener("roleChanged", handleRoleChange);
+    return () => window.removeEventListener("roleChanged", handleRoleChange);
   }, []);
 
-  const navItems = [
-    { path: "/", label: "Dashboard", icon: Home },
-    { path: "/patients", label: "Patients", icon: Users },
+  const switchRole = (newRole: Role) => {
+    dataManager.setCurrentRole(newRole);
+  };
+
+  const allNavItems = [
+    { path: "/", label: "Dashboard", icon: Home, roles: ["RECEPTION", "DOCTOR"] },
+    { path: "/patients", label: "Patients", icon: Users, roles: ["RECEPTION", "DOCTOR"] },
     {
       path: "/appointments",
       label: "Appointments",
       icon: Calendar,
       badge: todayAppointments > 0 ? todayAppointments : null,
+      roles: ["RECEPTION", "DOCTOR"],
     },
-    { path: "/treatments", label: "Treatments", icon: Stethoscope },
-    { path: "/data-management", label: "Data", icon: Database },
+    { path: "/treatments", label: "Treatments", icon: Stethoscope, roles: ["DOCTOR"] },
+    { path: "/payments", label: "Payments", icon: CreditCard, roles: ["RECEPTION"] },
+    { path: "/data-management", label: "Data", icon: Database, roles: ["RECEPTION"] },
   ];
+
+  const navItems = allNavItems.filter((item) => item.roles.includes(role));
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-100 sticky top-0 z-50">
@@ -79,9 +99,9 @@ const Navigation = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold bg-linear-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                Dental
+                DentalCare
               </h1>
-              <p className="text-xs text-gray-500 -mt-1">Practice Management</p>
+              <p className="text-xs text-gray-500 -mt-1">{role === "RECEPTION" ? "Reception Workspace" : "Doctor Workspace"}</p>
             </div>
           </div>
 
@@ -119,10 +139,25 @@ const Navigation = () => {
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-3">
-            {/* Search Button */}
-            <Button variant="ghost" size="sm" className="hidden lg:flex">
-              <Search className="h-4 w-4" />
-            </Button>
+            {/* Role Switcher */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="hidden lg:flex items-center space-x-2">
+                  <UserCircle className="h-4 w-4" />
+                  <span>{role.charAt(0) + role.slice(1).toLowerCase()}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => switchRole("RECEPTION")}>
+                  Reception
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => switchRole("DOCTOR")}>
+                  Doctor
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Notifications */}
             <Button variant="ghost" size="sm" className="relative">
@@ -145,9 +180,9 @@ const Navigation = () => {
                   className="relative h-10 w-10 rounded-full"
                 >
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="" alt="Dr. Smith" />
+                    <AvatarImage src="" alt="User" />
                     <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white font-semibold">
-                      DS
+                      {role === "DOCTOR" ? "DS" : "RA"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -156,10 +191,10 @@ const Navigation = () => {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      Dr. Sarah Smith
+                      {role === "DOCTOR" ? "Dr. Sarah Smith" : "Reception Admin"}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      sarah.smith@dentalcare.com
+                      {role === "DOCTOR" ? "sarah.smith@dentalcare.com" : "reception@dentalcare.com"}
                     </p>
                   </div>
                 </DropdownMenuLabel>
@@ -167,6 +202,10 @@ const Navigation = () => {
                 <DropdownMenuItem className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer lg:hidden" onClick={() => switchRole(role === "RECEPTION" ? "DOCTOR" : "RECEPTION")}>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>Switch to {role === "RECEPTION" ? "Doctor" : "Reception"}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />

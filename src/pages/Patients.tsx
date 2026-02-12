@@ -31,9 +31,12 @@ import {
   Users,
   UserPlus,
   Filter,
+  History,
+  FileText,
+  Stethoscope,
 } from "lucide-react";
 import PatientForm from "@/components/PatientForm";
-import { dataManager, Patient } from "@/lib/dataManager";
+import { dataManager, Patient, Appointment, Treatment, Role } from "@/lib/dataManager";
 import { toast } from "sonner";
 
 const Patients = () => {
@@ -41,10 +44,15 @@ const Patients = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [viewingHistory, setViewingHistory] = useState<Patient | null>(null);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const [role, setRole] = useState<Role>(dataManager.getCurrentRole());
 
   useEffect(() => {
     loadPatients();
+    const handleRoleChange = () => setRole(dataManager.getCurrentRole());
+    window.addEventListener("roleChanged", handleRoleChange);
+    return () => window.removeEventListener("roleChanged", handleRoleChange);
   }, []);
 
   useEffect(() => {
@@ -121,127 +129,40 @@ const Patients = () => {
     return age;
   };
 
-  const getNewPatientsCount = () => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return patients.filter(
-      (patient) => new Date(patient.createdAt) > thirtyDaysAgo
-    ).length;
-  };
-
-  const getPatientsWithAllergies = () => {
-    return patients.filter(
-      (patient) => patient.allergies && patient.allergies.trim() !== ""
-    ).length;
-  };
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Patient Management
+            {role === "DOCTOR" ? "Patient Records" : "Patient Management"}
           </h1>
           <p className="text-gray-600 mt-1">
-            Manage patient records and information
+            {role === "DOCTOR" ? "View and manage clinical patient data" : "Manage patient registrations and contacts"}
           </p>
         </div>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg">
-              <Plus className="h-4 w-4 mr-2" />
-              Add New Patient
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Patient</DialogTitle>
-              <DialogDescription>
-                Enter the patient's information to create a new record.
-              </DialogDescription>
-            </DialogHeader>
-            <PatientForm onSave={handleAddPatient} onCancel={()=>{}} />
-          </DialogContent>
-        </Dialog>
+        {role === "RECEPTION" && (
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Patient
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Patient</DialogTitle>
+                <DialogDescription>
+                  Enter the patient's information to create a new record.
+                </DialogDescription>
+              </DialogHeader>
+              <PatientForm onSave={handleAddPatient} onCancel={()=>{}} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-linear-to-br from-blue-50 to-blue-100">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">
-                  Total Patients
-                </p>
-                <p className="text-3xl font-bold text-blue-900">
-                  {patients.length}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-200 rounded-full">
-                <Users className="h-6 w-6 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-linear-to-br from-green-50 to-green-100">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">
-                  New This Month
-                </p>
-                <p className="text-3xl font-bold text-green-900">
-                  {getNewPatientsCount()}
-                </p>
-              </div>
-              <div className="p-3 bg-green-200 rounded-full">
-                <UserPlus className="h-6 w-6 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-linear-to-br from-orange-50 to-orange-100">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-600 text-sm font-medium">
-                  With Allergies
-                </p>
-                <p className="text-3xl font-bold text-orange-900">
-                  {getPatientsWithAllergies()}
-                </p>
-              </div>
-              <div className="p-3 bg-orange-200 rounded-full">
-                <AlertTriangle className="h-6 w-6 text-orange-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-linear-to-br from-purple-50 to-purple-100">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-600 text-sm font-medium">
-                  Active Records
-                </p>
-                <p className="text-3xl font-bold text-purple-900">
-                  {patients.length}
-                </p>
-              </div>
-              <div className="p-3 bg-purple-200 rounded-full">
-                <Filter className="h-6 w-6 text-purple-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
+      {/* Search */}
       <Card className="border-0 shadow-lg">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -251,7 +172,7 @@ const Patients = () => {
                 placeholder="Search patients by name, email, or phone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                className="pl-10"
               />
             </div>
           </div>
@@ -269,7 +190,6 @@ const Patients = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src="" alt={patient.name} />
                     <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white font-semibold">
                       {getPatientInitials(patient.name)}
                     </AvatarFallback>
@@ -290,14 +210,18 @@ const Patients = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => setEditingPatient(patient)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
+                    <DropdownMenuItem onClick={() => setViewingHistory(patient)}>
+                      <History className="h-4 w-4 mr-2" />
+                      Clinical History
                     </DropdownMenuItem>
+                    {role === "RECEPTION" && (
+                      <DropdownMenuItem onClick={() => setEditingPatient(patient)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Details
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
-                </DropdownMenu>>
+                </DropdownMenu>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -309,10 +233,6 @@ const Patients = () => {
                 <div className="flex items-center text-sm text-gray-600">
                   <Mail className="h-4 w-4 mr-2 text-green-500" />
                   {patient.email}
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <Calendar className="h-4 w-4 mr-2 text-purple-500" />
-                  Born: {formatDate(patient.dateOfBirth)}
                 </div>
               </div>
 
@@ -326,7 +246,7 @@ const Patients = () => {
                 </div>
               )}
 
-              {patient.medicalHistory && (
+              {role === "DOCTOR" && patient.medicalHistory && (
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                   <p className="text-sm text-blue-700 font-medium mb-1">
                     Medical History
@@ -337,13 +257,15 @@ const Patients = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <Badge variant="secondary" className="text-xs">
-                  Patient ID: {patient.id.slice(-6)}
-                </Badge>
-                <span className="text-xs text-gray-500">
-                  Added: {formatDate(patient.createdAt)}
-                </span>
+              <div className="pt-2">
+                <Button 
+                  variant="outline" 
+                  className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={() => setViewingHistory(patient)}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Records
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -375,6 +297,89 @@ const Patients = () => {
         </Card>
       )}
 
+      {/* History Dialog */}
+      <Dialog open={!!viewingHistory} onOpenChange={() => setViewingHistory(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clinical History: {viewingHistory?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center">
+                    <Calendar className="h-4 w-4 mr-2 text-blue-500" />
+                    Past Appointments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {dataManager.getAppointments()
+                      .filter(a => a.patientId === viewingHistory?.id)
+                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(apt => (
+                        <div key={apt.id} className="text-sm border-l-2 border-blue-200 pl-3 py-1">
+                          <p className="font-medium">{formatDate(apt.date)} at {apt.time}</p>
+                          <p className="text-gray-600">{apt.type} - <span className="capitalize">{apt.status}</span></p>
+                        </div>
+                      ))
+                    }
+                    {dataManager.getAppointments().filter(a => a.patientId === viewingHistory?.id).length === 0 && (
+                      <p className="text-sm text-gray-500">No appointments found</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center">
+                    <Stethoscope className="h-4 w-4 mr-2 text-purple-500" />
+                    Treatments & Diagnoses
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dataManager.getTreatments()
+                      .filter(t => t.patientId === viewingHistory?.id)
+                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(t => (
+                        <div key={t.id} className="text-sm bg-gray-50 p-3 rounded-lg">
+                          <p className="font-semibold text-purple-700">{formatDate(t.date)}</p>
+                          <p className="font-medium mt-1">Diagnosis: {t.diagnosis}</p>
+                          <p className="text-gray-600 mt-1">Treatment: {t.treatment}</p>
+                          {t.notes && <p className="text-xs italic mt-1 text-gray-500">Notes: {t.notes}</p>}
+                        </div>
+                      ))
+                    }
+                    {dataManager.getTreatments().filter(t => t.patientId === viewingHistory?.id).length === 0 && (
+                      <p className="text-sm text-gray-500">No treatment records found</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-xl">
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Medical Alerts
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-bold text-blue-700 uppercase">Allergies</p>
+                  <p className="text-sm text-blue-900">{viewingHistory?.allergies || "None reported"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-blue-700 uppercase">Chronic Conditions</p>
+                  <p className="text-sm text-blue-900">{viewingHistory?.medicalHistory || "None reported"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Patient Dialog */}
       <Dialog
         open={!!editingPatient}
@@ -383,9 +388,6 @@ const Patients = () => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Patient</DialogTitle>
-            <DialogDescription>
-              Update the patient's information.
-            </DialogDescription>
           </DialogHeader>
           {editingPatient && (
             <PatientForm

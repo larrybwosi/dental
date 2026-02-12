@@ -15,47 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Pill } from "lucide-react";
 import { toast } from "sonner";
-
-interface Patient {
-  id: string;
-  name: string;
-  phone: string;
-}
-
-interface Appointment {
-  id: string;
-  patientId: string;
-  patientName: string;
-  date: string;
-  time: string;
-  type: string;
-}
-
-interface Medication {
-  name: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  instructions: string;
-}
-
-interface Treatment {
-  id: string;
-  patientId: string;
-  patientName: string;
-  appointmentId: string;
-  date: string;
-  diagnosis: string;
-  treatment: string;
-  medications: Medication[];
-  notes: string;
-  followUpDate: string;
-  cost: number;
-}
+import { dataManager, Patient, Appointment, Treatment, Medication } from "@/lib/dataManager";
 
 interface TreatmentFormProps {
   treatment?: Treatment;
-  onSave: (treatment: Treatment) => void;
+  onSave: (treatment: Omit<Treatment, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
 }
 
@@ -88,7 +52,7 @@ const frequencies = [
 const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [formData, setFormData] = useState<Omit<Treatment, "id">>({
+  const [formData, setFormData] = useState<Omit<Treatment, "id" | "createdAt" | "updatedAt">>({
     patientId: treatment?.patientId || "",
     patientName: treatment?.patientName || "",
     appointmentId: treatment?.appointmentId || "",
@@ -102,16 +66,8 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
   });
 
   useEffect(() => {
-    const storedPatients = localStorage.getItem("dentalcare_patients");
-    const storedAppointments = localStorage.getItem("dentalcare_appointments");
-
-    if (storedPatients) {
-      setPatients(JSON.parse(storedPatients));
-    }
-
-    if (storedAppointments) {
-      setAppointments(JSON.parse(storedAppointments));
-    }
+    setPatients(dataManager.getPatients());
+    setAppointments(dataManager.getAppointments());
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -122,12 +78,7 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
       return;
     }
 
-    const treatmentData: Treatment = {
-      id: treatment?.id || Date.now().toString(),
-      ...formData,
-    };
-
-    onSave(treatmentData);
+    onSave(formData);
     toast.success(
       treatment
         ? "Treatment updated successfully"

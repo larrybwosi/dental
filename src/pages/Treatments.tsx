@@ -372,7 +372,7 @@ const Treatments = () => {
                       Edit
                     </DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>>
+                </DropdownMenu>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

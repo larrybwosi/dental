@@ -1,4 +1,5 @@
-// Data Manager for local storage and export/import functionality
+export type Role = "RECEPTION" | "DOCTOR";
+
 export interface Patient {
   id: string;
   name: string;
@@ -52,10 +53,25 @@ export interface Treatment {
   updatedAt: string;
 }
 
+export interface Payment {
+  id: string;
+  patientId: string;
+  patientName: string;
+  treatmentId?: string;
+  amount: number;
+  date: string;
+  method: "cash" | "card" | "transfer";
+  status: "pending" | "paid";
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DatabaseBackup {
   patients: Patient[];
   appointments: Appointment[];
   treatments: Treatment[];
+  payments: Payment[];
   exportDate: string;
   version: string;
 }
@@ -67,6 +83,7 @@ export interface BackupEntry {
   patientCount: number;
   appointmentCount: number;
   treatmentCount: number;
+  paymentCount: number;
   data: DatabaseBackup;
 }
 
@@ -76,6 +93,7 @@ class DataManager {
     PATIENTS: "dentalcare_patients",
     APPOINTMENTS: "dentalcare_appointments",
     TREATMENTS: "dentalcare_treatments",
+    PAYMENTS: "dentalcare_payments",
     BACKUP_HISTORY: "dentalcare_backup_history",
   };
 
@@ -106,6 +124,16 @@ class DataManager {
       console.error(`Error loading ${key}:`, error);
       return [];
     }
+  }
+
+  // Role management (mock)
+  public getCurrentRole(): Role {
+    return (localStorage.getItem("dentalcare_role") as Role) || "RECEPTION";
+  }
+
+  public setCurrentRole(role: Role): void {
+    localStorage.setItem("dentalcare_role", role);
+    window.dispatchEvent(new Event("roleChanged"));
   }
 
   // Patient methods
@@ -187,6 +215,12 @@ class DataManager {
     return appointments[index];
   }
 
+  public deleteAppointment(id: string): void {
+    const appointments = this.getAppointments();
+    const filtered = appointments.filter((a) => a.id !== id);
+    this.saveAppointments(filtered);
+  }
+
   // Treatment methods
   public getTreatments(): Treatment[] {
     return this.getItem<Treatment>(this.STORAGE_KEYS.TREATMENTS);
@@ -228,14 +262,39 @@ class DataManager {
     return treatments[index];
   }
 
+  // Payment methods
+  public getPayments(): Payment[] {
+    return this.getItem<Payment>(this.STORAGE_KEYS.PAYMENTS);
+  }
+
+  public savePayments(payments: Payment[]): void {
+    this.setItem(this.STORAGE_KEYS.PAYMENTS, payments);
+  }
+
+  public addPayment(
+    payment: Omit<Payment, "id" | "createdAt" | "updatedAt">
+  ): Payment {
+    const payments = this.getPayments();
+    const newPayment: Payment = {
+      ...payment,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    payments.push(newPayment);
+    this.savePayments(payments);
+    return newPayment;
+  }
+
   // Export/Import methods
   public exportData(): DatabaseBackup {
     const backup: DatabaseBackup = {
       patients: this.getPatients(),
       appointments: this.getAppointments(),
       treatments: this.getTreatments(),
+      payments: this.getPayments(),
       exportDate: new Date().toISOString(),
-      version: "1.0.0",
+      version: "1.1.0",
     };
 
     // Save to backup history
@@ -261,7 +320,7 @@ class DataManager {
   }
 
   public exportToCSV(
-    dataType: "patients" | "appointments" | "treatments"
+    dataType: "patients" | "appointments" | "treatments" | "payments"
   ): void {
     //eslint-disable-next-line
     let data: any[] = [];
@@ -273,7 +332,7 @@ class DataManager {
         filename = "patients";
         break;
       case "appointments":
-        data = this.getAppointments() ;
+        data = this.getAppointments();
         filename = "appointments";
         break;
       case "treatments":
@@ -284,6 +343,10 @@ class DataManager {
             .join("; "),
         }));
         filename = "treatments";
+        break;
+      case "payments":
+        data = this.getPayments();
+        filename = "payments";
         break;
     }
 
@@ -315,7 +378,7 @@ class DataManager {
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `dentalcare-${filename}-${
+    link.download = `dentalcare-${filename}-${ 
       new Date().toISOString().split("T")[0]
     }.csv`;
     document.body.appendChild(link);
@@ -330,7 +393,12 @@ class DataManager {
   } {
     try {
       // Validate backup structure
-      if (!backup.patients || !backup.appointments || !backup.treatments) {
+      if (
+        !backup.patients ||
+        !backup.appointments ||
+        !backup.treatments ||
+        !backup.payments
+      ) {
         return { success: false, message: "Invalid backup file structure" };
       }
 
@@ -342,6 +410,7 @@ class DataManager {
       this.savePatients(backup.patients);
       this.saveAppointments(backup.appointments);
       this.saveTreatments(backup.treatments);
+      this.savePayments(backup.payments);
 
       return {
         success: true,
@@ -366,7 +435,7 @@ class DataManager {
           const backup = JSON.parse(e.target?.result as string);
           resolve(this.importData(backup));
         } catch (error) {
-          console.log(error)
+          console.log(error);
           resolve({ success: false, message: "Invalid JSON file format" });
         }
       };
@@ -390,6 +459,7 @@ class DataManager {
       patientCount: backup.patients.length,
       appointmentCount: backup.appointments.length,
       treatmentCount: backup.treatments.length,
+      paymentCount: backup.payments.length,
       data: backup,
     };
 
@@ -425,12 +495,14 @@ class DataManager {
     totalPatients: number;
     totalAppointments: number;
     totalTreatments: number;
+    totalPayments: number;
     storageUsed: string;
     lastBackup: string | null;
   } {
     const patients = this.getPatients();
     const appointments = this.getAppointments();
     const treatments = this.getTreatments();
+    const payments = this.getPayments();
     const backupHistory = this.getBackupHistory();
 
     // Calculate approximate storage usage
@@ -438,6 +510,7 @@ class DataManager {
       patients,
       appointments,
       treatments,
+      payments,
     }).length;
     const storageUsed = `${(dataSize / 1024).toFixed(2)} KB`;
 
@@ -445,6 +518,7 @@ class DataManager {
       totalPatients: patients.length,
       totalAppointments: appointments.length,
       totalTreatments: treatments.length,
+      totalPayments: payments.length,
       storageUsed,
       lastBackup: backupHistory.length > 0 ? backupHistory[0].date : null,
     };
@@ -454,11 +528,13 @@ class DataManager {
   public validateData(): {
     orphanedAppointments: number;
     orphanedTreatments: number;
+    orphanedPayments: number;
     duplicatePatients: number;
   } {
     const patients = this.getPatients();
     const appointments = this.getAppointments();
     const treatments = this.getTreatments();
+    const payments = this.getPayments();
 
     const patientIds = new Set(patients.map((p) => p.id));
     const orphanedAppointments = appointments.filter(
@@ -466,6 +542,9 @@ class DataManager {
     ).length;
     const orphanedTreatments = treatments.filter(
       (t) => !patientIds.has(t.patientId)
+    ).length;
+    const orphanedPayments = payments.filter(
+      (p) => !patientIds.has(p.patientId)
     ).length;
 
     // Check for duplicate patients (same email or phone)
@@ -481,13 +560,19 @@ class DataManager {
       phones.add(patient.phone);
     });
 
-    return { orphanedAppointments, orphanedTreatments, duplicatePatients };
+    return {
+      orphanedAppointments,
+      orphanedTreatments,
+      orphanedPayments,
+      duplicatePatients,
+    };
   }
 
   public cleanupOrphanedData(): { cleaned: number } {
     const patients = this.getPatients();
     const appointments = this.getAppointments();
     const treatments = this.getTreatments();
+    const payments = this.getPayments();
 
     const patientIds = new Set(patients.map((p) => p.id));
 
@@ -497,16 +582,27 @@ class DataManager {
     const validTreatments = treatments.filter((t) =>
       patientIds.has(t.patientId)
     );
+    const validPayments = payments.filter((p) => patientIds.has(p.patientId));
 
     const cleanedCount =
       appointments.length -
       validAppointments.length +
-      (treatments.length - validTreatments.length);
+      (treatments.length - validTreatments.length) +
+      (payments.length - validPayments.length);
 
     this.saveAppointments(validAppointments);
     this.saveTreatments(validTreatments);
+    this.savePayments(validPayments);
 
     return { cleaned: cleanedCount };
+  }
+
+  public clearAllData(): void {
+    localStorage.removeItem(this.STORAGE_KEYS.PATIENTS);
+    localStorage.removeItem(this.STORAGE_KEYS.APPOINTMENTS);
+    localStorage.removeItem(this.STORAGE_KEYS.TREATMENTS);
+    localStorage.removeItem(this.STORAGE_KEYS.PAYMENTS);
+    localStorage.removeItem(this.STORAGE_KEYS.BACKUP_HISTORY);
   }
 }
 
