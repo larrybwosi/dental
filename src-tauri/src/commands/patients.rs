@@ -67,20 +67,20 @@ pub fn create_patient(
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        "INSERT INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, created_at, updated_at, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'pending')",
         [
-            id.as_str(),
-            name.as_str(),
-            phone.as_deref().unwrap_or_default(),
-            email.as_deref().unwrap_or_default(),
-            date_of_birth.as_deref().unwrap_or_default(),
-            address.as_deref().unwrap_or_default(),
-            medical_history.as_deref().unwrap_or_default(),
-            allergies.as_deref().unwrap_or_default(),
-            emergency_contact.as_deref().unwrap_or_default(),
-            emergency_phone.as_deref().unwrap_or_default(),
-            now.as_str(),
-            now.as_str()
+            Some(id.clone()),
+            Some(name.clone()),
+            phone.clone(),
+            email.clone(),
+            date_of_birth.clone(),
+            address.clone(),
+            medical_history.clone(),
+            allergies.clone(),
+            emergency_contact.clone(),
+            emergency_phone.clone(),
+            Some(now.clone()),
+            Some(now.clone()),
         ],
     ).map_err(|e| e.to_string())?;
 
@@ -118,19 +118,19 @@ pub fn update_patient(
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "UPDATE patients SET name = ?1, phone = ?2, email = ?3, date_of_birth = ?4, address = ?5, medical_history = ?6, allergies = ?7, emergency_contact = ?8, emergency_phone = ?9, updated_at = ?10 WHERE id = ?11",
+        "UPDATE patients SET name = ?1, phone = ?2, email = ?3, date_of_birth = ?4, address = ?5, medical_history = ?6, allergies = ?7, emergency_contact = ?8, emergency_phone = ?9, updated_at = ?10, sync_status = 'pending' WHERE id = ?11",
         [
-            name.as_str(),
-            phone.as_deref().unwrap_or_default(),
-            email.as_deref().unwrap_or_default(),
-            date_of_birth.as_deref().unwrap_or_default(),
-            address.as_deref().unwrap_or_default(),
-            medical_history.as_deref().unwrap_or_default(),
-            allergies.as_deref().unwrap_or_default(),
-            emergency_contact.as_deref().unwrap_or_default(),
-            emergency_phone.as_deref().unwrap_or_default(),
-            now.as_str(),
-            id.as_str()
+            Some(name),
+            phone,
+            email,
+            date_of_birth,
+            address,
+            medical_history,
+            allergies,
+            emergency_contact,
+            emergency_phone,
+            Some(now),
+            Some(id),
         ],
     ).map_err(|e| e.to_string())?;
 

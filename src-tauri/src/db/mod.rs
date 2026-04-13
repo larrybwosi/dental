@@ -84,7 +84,7 @@ pub fn init_db(app_handle: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS medications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             treatment_id TEXT NOT NULL,
             name TEXT NOT NULL,
             dosage TEXT,
@@ -93,6 +93,15 @@ pub fn init_db(app_handle: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
             instructions TEXT,
             sync_status TEXT DEFAULT 'synced',
             FOREIGN KEY (treatment_id) REFERENCES treatments (id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS pairing_tokens (
+            token TEXT PRIMARY KEY,
+            client_name TEXT,
+            created_at TEXT NOT NULL
         )",
         [],
     )?;

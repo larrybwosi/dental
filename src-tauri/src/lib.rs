@@ -3,6 +3,8 @@ pub mod models;
 pub mod commands;
 pub mod hub;
 pub mod spoke;
+#[cfg(test)]
+mod db_tests;
 
 use tauri::Manager;
 

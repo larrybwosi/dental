@@ -1,9 +1,10 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        State, Request,
     },
-    response::IntoResponse,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -43,13 +44,17 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
         pairing_code,
     };
 
-    let app = Router::new()
-        .route("/pair", post(pair_handler))
+    let auth_router = Router::new()
         .route("/sync/patients", get(get_patients_handler).post(post_patients_handler))
         .route("/sync/appointments", get(get_appointments_handler).post(post_appointments_handler))
         .route("/sync/treatments", get(get_treatments_handler).post(post_treatments_handler))
         .route("/sync/payments", get(get_payments_handler).post(post_payments_handler))
         .route("/ws", get(ws_handler))
+        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
+    let app = Router::new()
+        .route("/pair", post(pair_handler))
+        .merge(auth_router)
         .with_state(state);
 
     let port = 8080;
@@ -88,6 +93,35 @@ struct PairResponse {
     success: bool,
 }
 
+async fn auth_middleware(
+    State(state): State<HubState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let auth_header = req.headers().get("Authorization").and_then(|h| h.to_str().ok());
+    if let Some(token) = auth_header {
+        let conn = match get_db_conn(&state.app_handle) {
+            Ok(c) => c,
+            Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
+
+        let mut stmt = match conn.prepare("SELECT COUNT(*) FROM pairing_tokens WHERE token = ?1") {
+            Ok(s) => s,
+            Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
+
+        let count: i64 = match stmt.query_row([token], |row| row.get(0)) {
+            Ok(c) => c,
+            Err(_) => 0,
+        };
+
+        if count > 0 {
+            return next.run(req).await;
+        }
+    }
+    axum::http::StatusCode::UNAUTHORIZED.into_response()
+}
+
 async fn pair_handler(
     State(state): State<HubState>,
     Json(payload): Json<PairRequest>,
@@ -95,9 +129,23 @@ async fn pair_handler(
     let current_code = state.pairing_code.lock().unwrap();
     if let Some(ref code) = *current_code {
         if code == &payload.code {
-            println!("Successful pairing with code: {}", code);
+            let token = uuid::Uuid::new_v4().to_string();
+            let conn = match get_db_conn(&state.app_handle) {
+                Ok(c) => c,
+                Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+            };
+
+            let now = chrono::Utc::now().to_rfc3339();
+            if let Err(e) = conn.execute(
+                "INSERT INTO pairing_tokens (token, created_at) VALUES (?1, ?2)",
+                [&token, &now],
+            ) {
+                return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+
+            println!("Successful pairing with code: {}. Generated token: {}", code, token);
             return (axum::http::StatusCode::OK, Json(PairResponse {
-                token: "dummy-token".to_string(),
+                token,
                 success: true,
             })).into_response();
         }
@@ -132,14 +180,24 @@ async fn post_patients_handler(
 
     for p in patients {
         let _ = conn.execute(
-            "INSERT OR REPLACE INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')",
-            [
-                p.id.as_str(), p.name.as_str(), p.phone.as_deref().unwrap_or_default(), p.email.as_deref().unwrap_or_default(),
-                p.date_of_birth.as_deref().unwrap_or_default(), p.address.as_deref().unwrap_or_default(),
-                p.medical_history.as_deref().unwrap_or_default(), p.allergies.as_deref().unwrap_or_default(),
-                p.emergency_contact.as_deref().unwrap_or_default(), p.emergency_phone.as_deref().unwrap_or_default(),
-                p.created_at.as_str(), p.updated_at.as_str()
+            "INSERT INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                phone = excluded.phone,
+                email = excluded.email,
+                date_of_birth = excluded.date_of_birth,
+                address = excluded.address,
+                medical_history = excluded.medical_history,
+                allergies = excluded.allergies,
+                emergency_contact = excluded.emergency_contact,
+                emergency_phone = excluded.emergency_phone,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > patients.updated_at",
+            rusqlite::params![
+                p.id, p.name, p.phone, p.email, p.date_of_birth, p.address,
+                p.medical_history, p.allergies, p.emergency_contact, p.emergency_phone,
+                p.created_at, p.updated_at
             ],
         );
     }
@@ -172,27 +230,38 @@ async fn post_treatments_handler(
     };
 
     for t in treatments {
-        let _ = tx.execute(
-            "INSERT OR REPLACE INTO treatments (id, patient_id, patient_name, appointment_id, date, diagnosis, treatment, notes, follow_up_date, cost, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')",
-            [
-                t.id.as_str(), t.patient_id.as_str(), t.patient_name.as_str(), t.appointment_id.as_str(), t.date.as_str(),
-                t.diagnosis.as_deref().unwrap_or_default(), t.treatment.as_deref().unwrap_or_default(),
-                t.notes.as_deref().unwrap_or_default(), t.follow_up_date.as_deref().unwrap_or_default(),
-                &t.cost.to_string(), t.created_at.as_str(), t.updated_at.as_str()
+        let res = tx.execute(
+            "INSERT INTO treatments (id, patient_id, patient_name, appointment_id, date, diagnosis, treatment, notes, follow_up_date, cost, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                diagnosis = excluded.diagnosis,
+                treatment = excluded.treatment,
+                notes = excluded.notes,
+                follow_up_date = excluded.follow_up_date,
+                cost = excluded.cost,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > treatments.updated_at",
+            rusqlite::params![
+                t.id, t.patient_id, t.patient_name, t.appointment_id, t.date,
+                t.diagnosis, t.treatment, t.notes, t.follow_up_date, t.cost,
+                t.created_at, t.updated_at
             ],
         );
 
-        let _ = tx.execute("DELETE FROM medications WHERE treatment_id = ?1", [&t.id]);
-        for med in t.medications {
-            let _ = tx.execute(
-                "INSERT INTO medications (treatment_id, name, dosage, frequency, duration, instructions, sync_status)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'synced')",
-                [
-                    &t.id, &med.name, med.dosage.as_deref().unwrap_or_default(), med.frequency.as_deref().unwrap_or_default(),
-                    med.duration.as_deref().unwrap_or_default(), med.instructions.as_deref().unwrap_or_default()
-                ],
-            );
+        if let Ok(rows_affected) = res {
+            if rows_affected > 0 {
+                let _ = tx.execute("DELETE FROM medications WHERE treatment_id = ?1", [&t.id]);
+                for med in t.medications {
+                    let _ = tx.execute(
+                        "INSERT INTO medications (id, treatment_id, name, dosage, frequency, duration, instructions, sync_status)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'synced')",
+                        rusqlite::params![
+                            med.id, t.id, med.name, med.dosage, med.frequency,
+                            med.duration, med.instructions
+                        ],
+                    );
+                }
+            }
         }
     }
 
@@ -226,12 +295,17 @@ async fn post_payments_handler(
 
     for p in payments {
         let _ = conn.execute(
-            "INSERT OR REPLACE INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')",
-            [
-                p.id.as_str(), p.patient_id.as_str(), p.patient_name.as_str(), p.treatment_id.as_deref().unwrap_or_default(),
-                &p.amount.to_string(), p.date.as_str(), p.method.as_str(), p.status.as_str(),
-                p.notes.as_deref().unwrap_or_default(), p.created_at.as_str(), p.updated_at.as_str()
+            "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                amount = excluded.amount,
+                status = excluded.status,
+                notes = excluded.notes,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > payments.updated_at",
+            rusqlite::params![
+                p.id, p.patient_id, p.patient_name, p.treatment_id, p.amount,
+                p.date, p.method, p.status, p.notes, p.created_at, p.updated_at
             ],
         );
     }
@@ -259,14 +333,21 @@ async fn post_appointments_handler(
     };
 
     for a in appointments {
-        let duration_str = a.duration.unwrap_or(30).to_string();
         let _ = conn.execute(
-            "INSERT OR REPLACE INTO appointments (id, patient_id, patient_name, date, time, status, type, notes, duration, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')",
-            [
-                a.id.as_str(), a.patient_id.as_str(), a.patient_name.as_str(), a.date.as_str(), a.time.as_str(), a.status.as_str(),
-                a.appointment_type.as_deref().unwrap_or_default(), a.notes.as_deref().unwrap_or_default(),
-                duration_str.as_str(), a.created_at.as_str(), a.updated_at.as_str()
+            "INSERT INTO appointments (id, patient_id, patient_name, date, time, status, type, notes, duration, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                date = excluded.date,
+                time = excluded.time,
+                status = excluded.status,
+                type = excluded.type,
+                notes = excluded.notes,
+                duration = excluded.duration,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > appointments.updated_at",
+            rusqlite::params![
+                a.id, a.patient_id, a.patient_name, a.date, a.time, a.status,
+                a.appointment_type, a.notes, a.duration, a.created_at, a.updated_at
             ],
         );
     }
