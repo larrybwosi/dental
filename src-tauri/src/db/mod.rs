@@ -250,7 +250,14 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
     // Add sync_status to existing tables if they don't have it (for existing DBs)
     let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status"];
     for table in tables {
-        let _ = conn.execute(&format!("ALTER TABLE {} ADD COLUMN sync_status TEXT DEFAULT 'synced'", table), []);
+        // First check if column exists to avoid errors
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
+        let rows = stmt.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
+        let columns: Vec<String> = rows.filter_map(|r| r.ok()).collect();
+
+        if !columns.contains(&"sync_status".to_string()) {
+            let _ = conn.execute(&format!("ALTER TABLE {} ADD COLUMN sync_status TEXT DEFAULT 'synced'", table), []);
+        }
     }
 
     Ok(())

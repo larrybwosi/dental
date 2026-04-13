@@ -22,7 +22,7 @@ interface User {
 
 interface AppointmentFormProps {
   appointment?: Appointment;
-  onSave: (appointment: any) => void;
+  onSave: (appointment: Partial<Appointment>) => void;
   onCancel: () => void;
 }
 

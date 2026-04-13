@@ -25,7 +25,6 @@ import {
   Settings,
   Cloud,
   CloudOff,
-  Server,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -44,7 +43,7 @@ const Navigation = () => {
       try {
         const status = await invoke<string>("get_connection_status");
         setConnStatus(status);
-      } catch (e) {
+      } catch {
         setConnStatus("Offline");
       }
     };

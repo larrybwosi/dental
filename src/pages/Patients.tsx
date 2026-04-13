@@ -71,7 +71,7 @@ const Patients = () => {
       setPatients(loadedPatients);
       setAppointments(loadedAppointments);
       setTreatments(loadedTreatments);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load data");
     }
   };
@@ -84,7 +84,7 @@ const Patients = () => {
       await loadData();
       setShowAddDialog(false);
       toast.success("Patient added successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to add patient");
     }
   };
@@ -99,7 +99,7 @@ const Patients = () => {
       await loadData();
       setEditingPatient(null);
       toast.success("Patient updated successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to update patient");
     }
   };

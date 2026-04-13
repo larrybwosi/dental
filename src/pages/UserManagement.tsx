@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth, User } from "@/contexts/AuthContext";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
@@ -46,11 +46,7 @@ const UserManagement = () => {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("RECEPTION");
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
@@ -61,7 +57,11 @@ const UserManagement = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
