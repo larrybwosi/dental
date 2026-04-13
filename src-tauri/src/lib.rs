@@ -35,6 +35,15 @@ pub fn run() {
       commands::network::start_as_hub,
       commands::network::start_as_spoke,
       commands::network::get_connection_status,
+      commands::settings::get_setting,
+      commands::settings::set_setting,
+      commands::settings::list_settings,
+      commands::lifecycle::list_waiver_requests,
+      commands::lifecycle::create_waiver_request,
+      commands::lifecycle::update_waiver_status,
+      commands::lifecycle::get_doctor_status,
+      commands::lifecycle::list_doctor_statuses,
+      commands::lifecycle::update_doctor_status,
     ])
     .setup(|app| {
       db::init_db(app.handle())?;

@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { dataManager, Patient, Appointment } from "@/lib/dataManager";
+import { invoke } from "@tauri-apps/api/core";
+
+interface User {
+  id: string;
+  full_name: string;
+  role: string;
+}
 
 interface AppointmentFormProps {
   appointment?: Appointment;
@@ -61,9 +68,12 @@ const AppointmentForm = ({
   onCancel,
 }: AppointmentFormProps) => {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<User[]>([]);
   const [formData, setFormData] = useState({
     patient_id: appointment?.patient_id || "",
     patient_name: appointment?.patient_name || "",
+    doctor_id: appointment?.doctor_id || "",
+    doctor_name: appointment?.doctor_name || "",
     date: appointment?.date || "",
     time: appointment?.time || "",
     status: appointment?.status || "scheduled",
@@ -73,11 +83,15 @@ const AppointmentForm = ({
   });
 
   useEffect(() => {
-    const loadPatients = async () => {
-        const pts = await dataManager.getPatients();
+    const loadData = async () => {
+        const [pts, users] = await Promise.all([
+          dataManager.getPatients(),
+          invoke<User[]>("list_users")
+        ]);
         setPatients(pts);
+        setDoctors(users.filter(u => u.role === 'DOCTOR'));
     };
-    loadPatients();
+    loadData();
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -87,7 +101,8 @@ const AppointmentForm = ({
       !formData.patient_id ||
       !formData.date ||
       !formData.time ||
-      !formData.appointment_type
+      !formData.appointment_type ||
+      !formData.doctor_id
     ) {
       toast.error("Please fill in all required fields");
       return;
@@ -105,6 +120,15 @@ const AppointmentForm = ({
     }));
   };
 
+  const handleDoctorChange = (doctor_id: string) => {
+    const selectedDoctor = doctors.find((d) => d.id === doctor_id);
+    setFormData((prev) => ({
+      ...prev,
+      doctor_id,
+      doctor_name: selectedDoctor?.full_name || "",
+    }));
+  };
+
   const handleChange = (
     field: string,
     value: string | number
@@ -114,20 +138,38 @@ const AppointmentForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="patient">Patient *</Label>
-        <Select value={formData.patient_id} onValueChange={handlePatientChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a patient" />
-          </SelectTrigger>
-          <SelectContent>
-            {patients.map((patient) => (
-              <SelectItem key={patient.id} value={patient.id}>
-                {patient.name} - {patient.phone}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="patient">Patient *</Label>
+          <Select value={formData.patient_id} onValueChange={handlePatientChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a patient" />
+            </SelectTrigger>
+            <SelectContent>
+              {patients.map((patient) => (
+                <SelectItem key={patient.id} value={patient.id}>
+                  {patient.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="doctor">Doctor *</Label>
+          <Select value={formData.doctor_id} onValueChange={handleDoctorChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a doctor" />
+            </SelectTrigger>
+            <SelectContent>
+              {doctors.map((doctor) => (
+                <SelectItem key={doctor.id} value={doctor.id}>
+                  {doctor.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -218,6 +260,8 @@ const AppointmentForm = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="admitted">Admitted</SelectItem>
+              <SelectItem value="in_consultation">In Consultation</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>

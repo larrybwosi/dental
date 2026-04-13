@@ -9,6 +9,8 @@ import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Treatments from "./pages/Treatments";
 import Payments from "./pages/Payments";
+import WaitingRoom from "./pages/WaitingRoom";
+import Settings from "./pages/Settings";
 import DataManagement from "./components/DataManagement";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
@@ -57,8 +59,10 @@ const AppContent = () => {
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/treatments" element={<Treatments />} />
           <Route path="/payments" element={<Payments />} />
+          <Route path="/waiting-room" element={<WaitingRoom />} />
           {user.role === 'ADMIN' && (
             <>
+              <Route path="/settings" element={<Settings />} />
               <Route path="/data-management" element={<DataManagement />} />
               <Route path="/users" element={<UserManagement />} />
             </>

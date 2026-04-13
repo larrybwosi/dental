@@ -17,6 +17,8 @@ use crate::commands::patients::Patient;
 use crate::commands::appointments::Appointment;
 use crate::commands::treatments::Treatment;
 use crate::commands::payments::Payment;
+use crate::commands::lifecycle::{WaiverRequest, DoctorStatus};
+use crate::commands::settings::Setting;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
 use std::collections::HashMap;
@@ -49,6 +51,9 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
         .route("/sync/appointments", get(get_appointments_handler).post(post_appointments_handler))
         .route("/sync/treatments", get(get_treatments_handler).post(post_treatments_handler))
         .route("/sync/payments", get(get_payments_handler).post(post_payments_handler))
+        .route("/sync/waivers", get(get_waivers_handler).post(post_waivers_handler))
+        .route("/sync/doctor_statuses", get(get_doctor_statuses_handler).post(post_doctor_statuses_handler))
+        .route("/sync/settings", get(get_settings_handler).post(post_settings_handler))
         .route("/ws", get(ws_handler))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
@@ -330,24 +335,129 @@ async fn post_appointments_handler(
 
     for a in appointments {
         let _ = conn.execute(
-            "INSERT INTO appointments (id, patient_id, patient_name, date, time, status, type, notes, duration, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')
+            "INSERT INTO appointments (id, patient_id, patient_name, doctor_id, doctor_name, date, time, status, type, notes, duration, reception_fee_paid, reception_fee_waived, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 'synced')
              ON CONFLICT(id) DO UPDATE SET
+                doctor_id = excluded.doctor_id,
+                doctor_name = excluded.doctor_name,
                 date = excluded.date,
                 time = excluded.time,
                 status = excluded.status,
                 type = excluded.type,
                 notes = excluded.notes,
                 duration = excluded.duration,
+                reception_fee_paid = excluded.reception_fee_paid,
+                reception_fee_waived = excluded.reception_fee_waived,
                 updated_at = excluded.updated_at
              WHERE excluded.updated_at > appointments.updated_at",
             rusqlite::params![
-                a.id, a.patient_id, a.patient_name, a.date, a.time, a.status,
-                a.appointment_type, a.notes, a.duration, a.created_at, a.updated_at
+                a.id, a.patient_id, a.patient_name, a.doctor_id, a.doctor_name, a.date, a.time, a.status,
+                a.appointment_type, a.notes, a.duration, a.reception_fee_paid, a.reception_fee_waived, a.created_at, a.updated_at
             ],
         );
     }
     let _ = state.tx.send("appointment".to_string());
+    axum::http::StatusCode::OK.into_response()
+}
+
+async fn get_waivers_handler(State(state): State<HubState>) -> impl IntoResponse {
+    match crate::commands::lifecycle::list_waiver_requests(state.app_handle) {
+        Ok(waivers) => Json(SyncResponse {
+            data: waivers,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn post_waivers_handler(
+    State(state): State<HubState>,
+    Json(waivers): Json<Vec<WaiverRequest>>,
+) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for w in waivers {
+        let _ = conn.execute(
+            "INSERT INTO waiver_requests (id, appointment_id, patient_id, patient_name, doctor_id, requested_by, status, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                status = excluded.status,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > waiver_requests.updated_at",
+            rusqlite::params![
+                w.id, w.appointment_id, w.patient_id, w.patient_name, w.doctor_id, w.requested_by, w.status, w.created_at, w.updated_at
+            ],
+        );
+    }
+    let _ = state.tx.send("waiver_request".to_string());
+    axum::http::StatusCode::OK.into_response()
+}
+
+async fn get_doctor_statuses_handler(State(state): State<HubState>) -> impl IntoResponse {
+    match crate::commands::lifecycle::list_doctor_statuses(state.app_handle) {
+        Ok(statuses) => Json(SyncResponse {
+            data: statuses,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn post_doctor_statuses_handler(
+    State(state): State<HubState>,
+    Json(statuses): Json<Vec<DoctorStatus>>,
+) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for s in statuses {
+        let _ = conn.execute(
+            "INSERT INTO doctor_status (doctor_id, current_appointment_id, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, 'synced')
+             ON CONFLICT(doctor_id) DO UPDATE SET
+                current_appointment_id = excluded.current_appointment_id,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > doctor_status.updated_at",
+            rusqlite::params![
+                s.doctor_id, s.current_appointment_id, s.updated_at
+            ],
+        );
+    }
+    let _ = state.tx.send("doctor_status_updated".to_string());
+    axum::http::StatusCode::OK.into_response()
+}
+
+async fn get_settings_handler(State(state): State<HubState>) -> impl IntoResponse {
+    match crate::commands::settings::list_settings(state.app_handle) {
+        Ok(settings) => Json(SyncResponse {
+            data: settings,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn post_settings_handler(
+    State(state): State<HubState>,
+    Json(settings): Json<Vec<Setting>>,
+) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for s in settings {
+        let _ = conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![s.key, s.value],
+        );
+    }
+    let _ = state.tx.send("settings_updated".to_string());
     axum::http::StatusCode::OK.into_response()
 }
 
