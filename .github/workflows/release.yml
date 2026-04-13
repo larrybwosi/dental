@@ -99,7 +99,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - uses: tauri-apps/tauri-action@v2
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build app
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
