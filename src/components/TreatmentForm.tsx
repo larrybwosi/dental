@@ -120,6 +120,7 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
       medications: [
         ...prev.medications,
         {
+          id: crypto.randomUUID(),
           name: "",
           dosage: "",
           frequency: "",

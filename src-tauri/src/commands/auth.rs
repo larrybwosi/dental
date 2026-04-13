@@ -34,7 +34,7 @@ pub fn initial_setup(
     let role = "ADMIN".to_string();
 
     conn.execute(
-        "INSERT INTO users (id, username, password_hash, role, full_name, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO users (id, username, password_hash, role, full_name, created_at, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'synced')",
         [&id, &username, &password_hash, &role, &full_name, &created_at],
     ).map_err(|e| e.to_string())?;
 

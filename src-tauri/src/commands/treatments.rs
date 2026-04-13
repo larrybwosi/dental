@@ -6,6 +6,7 @@ use chrono::Utc;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Medication {
+    pub id: String,
     pub name: String,
     pub dosage: Option<String>,
     pub frequency: Option<String>,
@@ -56,14 +57,15 @@ pub fn list_treatments(app_handle: AppHandle) -> Result<Vec<Treatment>, String> 
     for row_result in treatment_rows {
         let (id, p_id, p_name, a_id, date, diag, treat, notes, f_up, cost, c_at, u_at) = row_result.map_err(|e| e.to_string())?;
 
-        let mut med_stmt = conn.prepare("SELECT name, dosage, frequency, duration, instructions FROM medications WHERE treatment_id = ?1").map_err(|e| e.to_string())?;
+        let mut med_stmt = conn.prepare("SELECT id, name, dosage, frequency, duration, instructions FROM medications WHERE treatment_id = ?1").map_err(|e| e.to_string())?;
         let medications = med_stmt.query_map([&id], |med_row| {
             Ok(Medication {
-                name: med_row.get(0)?,
-                dosage: med_row.get(1)?,
-                frequency: med_row.get(2)?,
-                duration: med_row.get(3)?,
-                instructions: med_row.get(4)?,
+                id: med_row.get(0)?,
+                name: med_row.get(1)?,
+                dosage: med_row.get(2)?,
+                frequency: med_row.get(3)?,
+                duration: med_row.get(4)?,
+                instructions: med_row.get(5)?,
             })
         }).map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -109,33 +111,34 @@ pub fn create_treatment(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     tx.execute(
-        "INSERT INTO treatments (id, patient_id, patient_name, appointment_id, date, diagnosis, treatment, notes, follow_up_date, cost, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-        [
-            &id,
-            &patient_id,
-            &patient_name,
-            &appointment_id,
-            &date,
-            &diagnosis.clone().unwrap_or_default(),
-            &treatment_desc.clone().unwrap_or_default(),
-            &notes.clone().unwrap_or_default(),
-            &follow_up_date.clone().unwrap_or_default(),
-            &cost.to_string(),
-            &now,
-            &now
+        "INSERT INTO treatments (id, patient_id, patient_name, appointment_id, date, diagnosis, treatment, notes, follow_up_date, cost, created_at, updated_at, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'pending')",
+        rusqlite::params![
+            id,
+            patient_id,
+            patient_name,
+            appointment_id,
+            date,
+            diagnosis,
+            treatment_desc,
+            notes,
+            follow_up_date,
+            cost,
+            now,
+            now
         ],
     ).map_err(|e| e.to_string())?;
 
     for med in &medications {
         tx.execute(
-            "INSERT INTO medications (treatment_id, name, dosage, frequency, duration, instructions) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            [
-                &id,
-                &med.name,
-                &med.dosage.clone().unwrap_or_default(),
-                &med.frequency.clone().unwrap_or_default(),
-                &med.duration.clone().unwrap_or_default(),
-                &med.instructions.clone().unwrap_or_default()
+            "INSERT INTO medications (id, treatment_id, name, dosage, frequency, duration, instructions, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending')",
+            rusqlite::params![
+                med.id,
+                id,
+                med.name,
+                med.dosage,
+                med.frequency,
+                med.duration,
+                med.instructions
             ],
         ).map_err(|e| e.to_string())?;
     }

@@ -83,6 +83,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "futures-util",
+ "http",
  "local-ip-address",
  "log",
  "mdns-sd",

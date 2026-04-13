@@ -3,8 +3,8 @@ pub mod models;
 pub mod commands;
 pub mod hub;
 pub mod spoke;
-
-use tauri::Manager;
+#[cfg(test)]
+mod db_tests;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

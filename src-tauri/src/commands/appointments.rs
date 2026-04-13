@@ -63,21 +63,21 @@ pub fn create_appointment(
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
-    let duration_str = duration.unwrap_or(30).to_string();
+    let actual_duration = duration.unwrap_or(30);
     conn.execute(
-        "INSERT INTO appointments (id, patient_id, patient_name, date, time, status, type, notes, duration, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        [
-            id.as_str(),
-            patient_id.as_str(),
-            patient_name.as_str(),
-            date.as_str(),
-            time.as_str(),
-            status.as_str(),
-            appointment_type.as_deref().unwrap_or_default(),
-            notes.as_deref().unwrap_or_default(),
-            duration_str.as_str(),
-            now.as_str(),
-            now.as_str()
+        "INSERT INTO appointments (id, patient_id, patient_name, date, time, status, type, notes, duration, created_at, updated_at, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending')",
+        rusqlite::params![
+            id,
+            patient_id,
+            patient_name,
+            date,
+            time,
+            status,
+            appointment_type,
+            notes,
+            actual_duration,
+            now,
+            now
         ],
     ).map_err(|e| e.to_string())?;
 
@@ -110,18 +110,18 @@ pub fn update_appointment(
     let conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
 
-    let duration_str = duration.unwrap_or(30).to_string();
+    let actual_duration = duration.unwrap_or(30);
     conn.execute(
-        "UPDATE appointments SET date = ?1, time = ?2, status = ?3, type = ?4, notes = ?5, duration = ?6, updated_at = ?7 WHERE id = ?8",
-        [
-            date.as_str(),
-            time.as_str(),
-            status.as_str(),
-            appointment_type.as_deref().unwrap_or_default(),
-            notes.as_deref().unwrap_or_default(),
-            duration_str.as_str(),
-            now.as_str(),
-            id.as_str()
+        "UPDATE appointments SET date = ?1, time = ?2, status = ?3, type = ?4, notes = ?5, duration = ?6, updated_at = ?7, sync_status = 'pending' WHERE id = ?8",
+        rusqlite::params![
+            date,
+            time,
+            status,
+            appointment_type,
+            notes,
+            actual_duration,
+            now,
+            id
         ],
     ).map_err(|e| e.to_string())?;
 

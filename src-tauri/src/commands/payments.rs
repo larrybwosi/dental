@@ -63,21 +63,20 @@ pub fn create_payment(
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
-    let amount_str = amount.to_string();
     conn.execute(
-        "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        [
-            id.as_str(),
-            patient_id.as_str(),
-            patient_name.as_str(),
-            treatment_id.as_deref().unwrap_or_default(),
-            amount_str.as_str(),
-            date.as_str(),
-            method.as_str(),
-            status.as_str(),
-            notes.as_deref().unwrap_or_default(),
-            now.as_str(),
-            now.as_str()
+        "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending')",
+        rusqlite::params![
+            id,
+            patient_id,
+            patient_name,
+            treatment_id,
+            amount,
+            date,
+            method,
+            status,
+            notes,
+            now,
+            now
         ],
     ).map_err(|e| e.to_string())?;
 
