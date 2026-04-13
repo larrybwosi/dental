@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,6 @@ import {
   Search,
   Plus,
   MoreVertical,
-  Edit,
   Trash2,
   Calendar,
   Stethoscope,
@@ -42,7 +41,6 @@ const Treatments = () => {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingTreatment, setEditingTreatment] = useState<Treatment | null>(null);
   const [viewingTreatment, setViewingTreatment] = useState<Treatment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,7 +53,7 @@ const Treatments = () => {
     try {
         const loadedTreatments = await dataManager.getTreatments();
         setTreatments(loadedTreatments);
-    } catch (error) {
+    } catch {
         toast.error("Failed to load treatments");
     } finally {
         setIsLoading(false);
@@ -70,7 +68,7 @@ const Treatments = () => {
       await loadTreatments();
       setShowAddDialog(false);
       toast.success("Treatment recorded successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to record treatment");
     }
   };

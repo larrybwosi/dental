@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,7 +51,7 @@ const Appointments = () => {
     try {
         const loadedAppointments = await dataManager.getAppointments();
         setAppointments(loadedAppointments);
-    } catch (error) {
+    } catch {
         toast.error("Failed to load appointments");
     } finally {
         if (showLoading) setIsLoading(false);
@@ -66,7 +66,7 @@ const Appointments = () => {
     let unlisten: (() => void) | undefined;
 
     const setupListener = async () => {
-      unlisten = await listen("sync-event", (event: any) => {
+      unlisten = await listen("sync-event", (event: { payload: { type: string } }) => {
         if (event.payload?.type === "appointment") {
           loadAppointments(false);
           toast.info("Schedule updated");
@@ -88,7 +88,7 @@ const Appointments = () => {
       await loadAppointments();
       setShowAddDialog(false);
       toast.success("Appointment scheduled successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to schedule appointment");
     }
   };
@@ -103,7 +103,7 @@ const Appointments = () => {
       await loadAppointments();
       setEditingAppointment(null);
       toast.success("Appointment updated successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to update appointment");
     }
   };
@@ -115,7 +115,7 @@ const Appointments = () => {
       await dataManager.deleteAppointment(id);
       await loadAppointments();
       toast.success("Appointment cancelled successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to cancel appointment");
     }
   };

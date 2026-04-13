@@ -245,14 +245,14 @@ class DataManager {
   }
 
   // Mocked for DataManagement component to avoid errors for now
-  public getStorageStats(): any { return { totalPatients: 0, totalAppointments: 0, totalTreatments: 0, storageUsed: "0 KB", lastBackup: null }; }
+  public getStorageStats() { return { totalPatients: 0, totalAppointments: 0, totalTreatments: 0, storageUsed: "0 KB", lastBackup: null }; }
   public getBackupHistory(): BackupEntry[] { return []; }
-  public validateData(): any { return { orphanedAppointments: 0, orphanedTreatments: 0, duplicatePatients: 0 }; }
+  public validateData() { return { orphanedAppointments: 0, orphanedTreatments: 0, duplicatePatients: 0 }; }
   public exportToFile(): void {}
-  public exportToCSV(type: string): void {}
-  public async importFromFile(file: File): Promise<any> { return { success: true, message: "Imported" }; }
-  public restoreFromBackup(id: string): any { return { success: true, message: "Restored" }; }
-  public cleanupOrphanedData(): any { return { cleaned: 0 }; }
+  public exportToCSV(_dataType?: string): void {}
+  public async importFromFile(_file?: File) { return { success: true, message: "Imported" }; }
+  public restoreFromBackup(_id?: string) { return { success: true, message: "Restored" }; }
+  public cleanupOrphanedData() { return { cleaned: 0 }; }
   public clearAllData(): void {}
 }
 

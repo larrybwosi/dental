@@ -24,7 +24,7 @@ const Settings = () => {
       ]);
       setReceptionFee(fee || "0");
       setRequirePaymentBeforeAdmit(requirePay === "true");
-    } catch (error) {
+    } catch {
       toast.error("Failed to load settings");
     } finally {
       setIsLoading(false);
@@ -38,7 +38,7 @@ const Settings = () => {
         dataManager.setSetting("require_payment_before_admit", requirePaymentBeforeAdmit.toString())
       ]);
       toast.success("Settings saved successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to save settings");
     }
   };

@@ -2,39 +2,11 @@
 mod tests {
     use rusqlite::Connection;
     use uuid::Uuid;
+    use crate::db::init_schema;
 
     fn setup_test_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL,
-                full_name TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                sync_status TEXT DEFAULT 'synced'
-            )",
-            [],
-        ).unwrap();
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS patients (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                phone TEXT,
-                email TEXT,
-                date_of_birth TEXT,
-                address TEXT,
-                medical_history TEXT,
-                allergies TEXT,
-                emergency_contact TEXT,
-                emergency_phone TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                sync_status TEXT DEFAULT 'synced'
-            )",
-            [],
-        ).unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
+        init_schema(&mut conn).expect("Failed to initialize schema");
         conn
     }
 

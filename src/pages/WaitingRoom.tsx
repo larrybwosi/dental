@@ -10,7 +10,6 @@ import {
   Users,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Stethoscope,
   XCircle,
   CreditCard,
@@ -58,7 +57,7 @@ const WaitingRoom = () => {
       setDoctorStatuses(statuses);
       setReceptionFee(Number(fee || 0));
       setRequirePaymentBeforeAdmit(reqPay === "true");
-    } catch (error) {
+    } catch {
       toast.error("Failed to load waiting room data");
     }
   };
@@ -72,7 +71,7 @@ const WaitingRoom = () => {
       await dataManager.updateAppointment(appt.id, { status: "admitted" });
       toast.success("Patient admitted to waiting room");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to admit patient");
     }
   };
@@ -92,7 +91,7 @@ const WaitingRoom = () => {
       });
       toast.success("Payment recorded");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to record payment");
     }
   };
@@ -108,7 +107,7 @@ const WaitingRoom = () => {
       });
       toast.success("Waiver request sent to doctor");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to request waiver");
     }
   };
@@ -118,7 +117,7 @@ const WaitingRoom = () => {
       await dataManager.updateWaiverStatus(waiver.id, "approved");
       toast.success("Waiver approved");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to approve waiver");
     }
   };
@@ -128,7 +127,7 @@ const WaitingRoom = () => {
       await dataManager.updateWaiverStatus(waiver.id, "denied");
       toast.success("Waiver denied");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to deny waiver");
     }
   };
@@ -145,7 +144,7 @@ const WaitingRoom = () => {
       await dataManager.updateDoctorStatus(user?.id || "", appt.id);
       toast.success(`Calling ${appt.patient_name}`);
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to call patient");
     }
   };
@@ -166,14 +165,9 @@ const WaitingRoom = () => {
       await dataManager.updateDoctorStatus(appt.doctor_id || "", null);
       toast.success("Patient checked out successfully");
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to checkout patient");
     }
-  };
-
-  const getDoctorBusyStatus = (doctorId: string | undefined) => {
-    const status = doctorStatuses.find(s => s.doctor_id === doctorId);
-    return status?.current_appointment_id ? "Busy" : "Available";
   };
 
   return (

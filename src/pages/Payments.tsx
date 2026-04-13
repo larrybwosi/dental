@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,11 +11,9 @@ import {
   Calendar,
   CreditCard,
   CheckCircle2,
-  Clock,
   MoreVertical,
   Download,
   FileText,
-  User,
   TrendingUp,
 } from "lucide-react";
 import {
@@ -81,7 +79,7 @@ const Payments = () => {
         setPayments(loadedPayments);
         setPatients(loadedPatients);
         setTreatments(loadedTreatments);
-    } catch (error) {
+    } catch {
         toast.error("Failed to load payments data");
     } finally {
         setIsLoading(false);
@@ -110,7 +108,7 @@ const Payments = () => {
         notes: "",
       });
       toast.success("Payment processed successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to process payment");
     }
   };

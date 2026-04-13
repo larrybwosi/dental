@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAuth, User } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const Login = ({ onNeedsSetup }: { onNeedsSetup: () => void }) => {
+const Login = (_props: { onNeedsSetup?: () => void }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);

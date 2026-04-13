@@ -19,7 +19,7 @@ interface Patient {
 
 interface PatientFormProps {
   patient?: Patient;
-  onSave: (patient: any) => void;
+  onSave: (patient: Omit<Patient, "id">) => void;
   onCancel: () => void;
 }
 
