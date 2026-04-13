@@ -53,16 +53,21 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
             id TEXT PRIMARY KEY,
             patient_id TEXT NOT NULL,
             patient_name TEXT NOT NULL,
+            doctor_id TEXT,
+            doctor_name TEXT,
             date TEXT NOT NULL,
             time TEXT NOT NULL,
             status TEXT NOT NULL,
             type TEXT,
             notes TEXT,
             duration INTEGER,
+            reception_fee_paid BOOLEAN DEFAULT 0,
+            reception_fee_waived BOOLEAN DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             sync_status TEXT DEFAULT 'synced',
-            FOREIGN KEY (patient_id) REFERENCES patients (id)
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (doctor_id) REFERENCES users (id)
         )",
         [],
     )?;
@@ -181,8 +186,53 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
         [],
     )?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS waiver_requests (
+            id TEXT PRIMARY KEY,
+            appointment_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            patient_name TEXT NOT NULL,
+            doctor_id TEXT NOT NULL,
+            requested_by TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced',
+            FOREIGN KEY (appointment_id) REFERENCES appointments (id),
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (doctor_id) REFERENCES users (id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS doctor_status (
+            doctor_id TEXT PRIMARY KEY,
+            current_appointment_id TEXT,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced',
+            FOREIGN KEY (doctor_id) REFERENCES users (id),
+            FOREIGN KEY (current_appointment_id) REFERENCES appointments (id)
+        )",
+        [],
+    )?;
+
+    // Add columns to existing tables if they don't have them
+    let _ = conn.execute("ALTER TABLE appointments ADD COLUMN doctor_id TEXT", []);
+    let _ = conn.execute("ALTER TABLE appointments ADD COLUMN doctor_name TEXT", []);
+    let _ = conn.execute("ALTER TABLE appointments ADD COLUMN reception_fee_paid BOOLEAN DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE appointments ADD COLUMN reception_fee_waived BOOLEAN DEFAULT 0", []);
+
     // Add sync_status to existing tables if they don't have it (for existing DBs)
-    let tables = vec!["users", "patients", "appointments", "treatments", "payments"];
+    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status"];
     for table in tables {
         let _ = conn.execute(&format!("ALTER TABLE {} ADD COLUMN sync_status TEXT DEFAULT 'synced'", table), []);
     }

@@ -19,14 +19,41 @@ export interface Appointment {
   id: string;
   patient_id: string;
   patient_name: string;
+  doctor_id?: string;
+  doctor_name?: string;
   date: string;
   time: string;
-  status: "scheduled" | "completed" | "cancelled";
+  status: "scheduled" | "admitted" | "in_consultation" | "completed" | "cancelled";
   appointment_type: string;
   notes: string;
   duration: number;
+  reception_fee_paid: boolean;
+  reception_fee_waived: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface WaiverRequest {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  patient_name: string;
+  doctor_id: string;
+  requested_by: string;
+  status: "pending" | "approved" | "denied";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoctorStatus {
+  doctor_id: string;
+  current_appointment_id: string | null;
+  updated_at: string;
+}
+
+export interface Setting {
+  key: string;
+  value: string;
 }
 
 export interface Medication {
@@ -141,12 +168,16 @@ class DataManager {
 
     await invoke("update_appointment", {
       id,
+      doctor_id: updates.doctor_id ?? current.doctor_id,
+      doctor_name: updates.doctor_name ?? current.doctor_name,
       date: updates.date ?? current.date,
       time: updates.time ?? current.time,
       status: updates.status ?? current.status,
       appointment_type: updates.appointment_type ?? current.appointment_type,
       notes: updates.notes ?? current.notes,
       duration: updates.duration ?? current.duration,
+      reception_fee_paid: updates.reception_fee_paid ?? current.reception_fee_paid,
+      reception_fee_waived: updates.reception_fee_waived ?? current.reception_fee_waived,
     });
   }
 
@@ -177,6 +208,40 @@ class DataManager {
     payment: Omit<Payment, "id" | "created_at" | "updated_at">
   ): Promise<Payment> {
     return await invoke<Payment>("create_payment", { ...payment });
+  }
+
+  // Settings methods
+  public async getSettings(): Promise<Setting[]> {
+    return await invoke<Setting[]>("list_settings");
+  }
+
+  public async getSetting(key: string): Promise<string | null> {
+    return await invoke<string | null>("get_setting", { key });
+  }
+
+  public async setSetting(key: string, value: string): Promise<void> {
+    await invoke("set_setting", { key, value });
+  }
+
+  // Lifecycle methods
+  public async getWaiverRequests(): Promise<WaiverRequest[]> {
+    return await invoke<WaiverRequest[]>("list_waiver_requests");
+  }
+
+  public async createWaiverRequest(request: Omit<WaiverRequest, "id" | "status" | "created_at" | "updated_at">): Promise<WaiverRequest> {
+    return await invoke<WaiverRequest>("create_waiver_request", { ...request });
+  }
+
+  public async updateWaiverStatus(id: string, status: "approved" | "denied"): Promise<void> {
+    await invoke("update_waiver_status", { id, status });
+  }
+
+  public async getDoctorStatuses(): Promise<DoctorStatus[]> {
+    return await invoke<DoctorStatus[]>("list_doctor_statuses");
+  }
+
+  public async updateDoctorStatus(doctor_id: string, current_appointment_id: string | null): Promise<void> {
+    await invoke("update_doctor_status", { doctor_id, current_appointment_id });
   }
 
   // Mocked for DataManagement component to avoid errors for now

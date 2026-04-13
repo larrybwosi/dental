@@ -83,6 +83,7 @@ const Navigation = () => {
     },
     { path: "/treatments", label: "Treatments", icon: Stethoscope, roles: ["ADMIN", "DOCTOR"] },
     { path: "/payments", label: "Payments", icon: CreditCard, roles: ["ADMIN", "RECEPTION"] },
+    { path: "/waiting-room", label: "Waiting Room", icon: Users, roles: ["ADMIN", "RECEPTION", "DOCTOR"] },
     { path: "/users", label: "Users", icon: User, roles: ["ADMIN"] },
     { path: "/data-management", label: "Data", icon: Database, roles: ["ADMIN"] },
   ];
@@ -204,10 +205,14 @@ const Navigation = () => {
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
+                {user?.role === 'ADMIN' && (
+                  <DropdownMenuItem className="cursor-pointer" asChild>
+                    <Link to="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer text-red-600" onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />

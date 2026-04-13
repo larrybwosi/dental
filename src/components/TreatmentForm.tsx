@@ -13,7 +13,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Pill } from "lucide-react";
+import { Plus, Trash2, Pill, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { dataManager, Patient, Appointment, Treatment, Medication } from "@/lib/dataManager";
 
@@ -77,7 +77,7 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
     loadOptions();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.patient_id || !formData.diagnosis || !formData.treatment) {
@@ -86,6 +86,24 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
     }
 
     onSave(formData);
+
+    // Create a pending payment if there's a cost
+    if (formData.cost > 0) {
+      try {
+        await dataManager.addPayment({
+          patient_id: formData.patient_id,
+          patient_name: formData.patient_name,
+          amount: formData.cost,
+          date: formData.date,
+          method: "cash",
+          status: "pending",
+          notes: `Service Fee for Treatment: ${formData.diagnosis}`,
+        });
+      } catch (error) {
+        console.error("Failed to create pending payment", error);
+      }
+    }
+
     toast.success(
       treatment
         ? "Treatment updated successfully"
@@ -215,7 +233,10 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cost">Treatment Cost ($)</Label>
+          <Label htmlFor="cost" className="flex items-center">
+            <DollarSign className="h-4 w-4 mr-1 text-green-600" />
+            Service Fee / Cost ($)
+          </Label>
           <Input
             id="cost"
             type="number"
@@ -230,6 +251,7 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
             }
             placeholder="0.00"
           />
+          <p className="text-[10px] text-gray-500 italic">This will be added to the patient's bill for checkout.</p>
         </div>
       </div>
 
