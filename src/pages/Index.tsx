@@ -88,7 +88,7 @@ const Index = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-            {user?.role.charAt(0) + user?.role.slice(1).toLowerCase()} Dashboard
+            {user?.role ? user.role.charAt(0) + user.role.slice(1).toLowerCase() : 'User'} Dashboard
           </h1>
           <p className="text-gray-500 mt-1 text-sm">
             Welcome back, {user?.full_name}. Here's the current status of DentalCare clinic.
