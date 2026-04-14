@@ -51,7 +51,7 @@ jobs:
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
           # Update lockfiles
           pnpm install --lockfile-only
-          cd src-tauri && cargo fetch && cd ..
+          cd src-tauri && cargo update -p app && cd ..
           git add pnpm-lock.yaml src-tauri/Cargo.lock
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
           git push
@@ -112,10 +112,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: "App Release v__VERSION__"
-          releaseBody: "Automated release of version v__VERSION__"
-          releaseDraft: true
+          tagName: v${{ needs.bump-version.outputs.new_version }}
+          releaseName: "App Release v${{ needs.bump-version.outputs.new_version }}"
+          releaseBody: "Automated release of version v${{ needs.bump-version.outputs.new_version }}"
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
