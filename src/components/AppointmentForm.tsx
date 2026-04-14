@@ -22,7 +22,7 @@ interface User {
 
 interface AppointmentFormProps {
   appointment?: Appointment;
-  onSave: (appointment: Partial<Appointment>) => void;
+  onSave: (appointment: Omit<Appointment, "id" | "created_at" | "updated_at">) => void;
   onCancel: () => void;
 }
 
@@ -80,6 +80,8 @@ const AppointmentForm = ({
     appointment_type: appointment?.appointment_type || "",
     notes: appointment?.notes || "",
     duration: appointment?.duration || 30,
+    reception_fee_paid: appointment?.reception_fee_paid || false,
+    reception_fee_waived: appointment?.reception_fee_waived || false,
   });
 
   useEffect(() => {
