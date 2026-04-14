@@ -102,7 +102,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri App (PR only)
+        if: github.event_name == 'pull_request'
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Build and Release (Push to main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -113,7 +119,7 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
-          includeRelease: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          includeRelease: true
 
       - name: Upload artifacts (PR only)
         if: github.event_name == 'pull_request'
