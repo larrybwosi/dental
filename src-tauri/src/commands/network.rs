@@ -39,7 +39,7 @@ pub fn get_network_info(state: State<'_, GlobalState>) -> NetworkInfo {
     let pairing_code = state.pairing_code.lock().map(|c| c.clone()).unwrap_or(None);
     let local_ips = get_local_ips();
 
-    NetworkInfo {
+NetworkInfo {
         mode,
         pairing_code,
         local_ips,
