@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { dataManager, Patient, Treatment, Payment } from "@/lib/dataManager";
+import { pdfGenerator } from "@/lib/pdfGenerator";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -140,10 +141,7 @@ const Payments = () => {
   const totalRevenue = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+    return `KSH ${amount.toLocaleString()}`;
   };
 
   return (
@@ -213,7 +211,7 @@ const Payments = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Amount ($) *</Label>
+                    <Label>Amount (KSH) *</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -394,10 +392,10 @@ const Payments = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="cursor-pointer">
-                          <FileText className="h-4 w-4 mr-2" /> View Invoice
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => pdfGenerator.generateInvoice(payment)}>
+                          <FileText className="h-4 w-4 mr-2" /> Download Invoice
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer">
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => pdfGenerator.generateReceipt(payment)}>
                           <Download className="h-4 w-4 mr-2" /> Download Receipt
                         </DropdownMenuItem>
                       </DropdownMenuContent>

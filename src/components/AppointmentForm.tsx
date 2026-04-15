@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { dataManager, Patient, Appointment } from "@/lib/dataManager";
+import { dataManager, Patient, Appointment, Service } from "@/lib/dataManager";
+import { calculateAge } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
 
 interface User {
@@ -25,19 +26,6 @@ interface AppointmentFormProps {
   onSave: (appointment: Omit<Appointment, "id" | "created_at" | "updated_at">) => void;
   onCancel: () => void;
 }
-
-const appointmentTypes = [
-  "Routine Cleaning",
-  "Dental Examination",
-  "Filling",
-  "Root Canal",
-  "Crown/Bridge",
-  "Tooth Extraction",
-  "Orthodontic Consultation",
-  "Teeth Whitening",
-  "Emergency Visit",
-  "Follow-up",
-];
 
 const timeSlots = [
   "08:00",
@@ -69,6 +57,7 @@ const AppointmentForm = ({
 }: AppointmentFormProps) => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<User[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [formData, setFormData] = useState({
     patient_id: appointment?.patient_id || "",
     patient_name: appointment?.patient_name || "",
@@ -86,12 +75,14 @@ const AppointmentForm = ({
 
   useEffect(() => {
     const loadData = async () => {
-        const [pts, users] = await Promise.all([
+        const [pts, users, svcs] = await Promise.all([
           dataManager.getPatients(),
-          invoke<User[]>("list_users")
+          invoke<User[]>("list_users"),
+          dataManager.getServices()
         ]);
         setPatients(pts);
         setDoctors(users.filter(u => u.role === 'DOCTOR'));
+        setServices(svcs);
     };
     loadData();
   }, []);
@@ -150,7 +141,7 @@ const AppointmentForm = ({
             <SelectContent>
               {patients.map((patient) => (
                 <SelectItem key={patient.id} value={patient.id}>
-                  {patient.name}
+                  {patient.name} ({calculateAge(patient.date_of_birth)} yrs)
                 </SelectItem>
               ))}
             </SelectContent>
@@ -219,11 +210,14 @@ const AppointmentForm = ({
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
-              {appointmentTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
+              {services.map((service) => (
+                <SelectItem key={service.id} value={service.name}>
+                  {service.name}
                 </SelectItem>
               ))}
+              {services.length === 0 && (
+                <SelectItem value="Other" disabled>No services configured</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>

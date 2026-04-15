@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { calculateAge } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,7 +86,9 @@ const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="date_of_birth" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Date of Birth</Label>
+          <Label htmlFor="date_of_birth" className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Date of Birth {formData.date_of_birth && `(Age: ${calculateAge(formData.date_of_birth)})`}
+          </Label>
           <Input
             id="date_of_birth"
             type="date"

@@ -56,6 +56,14 @@ export interface Setting {
   value: string;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  standard_fee: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Medication {
   id: string;
   name: string;
@@ -63,6 +71,29 @@ export interface Medication {
   frequency: string;
   duration: string;
   instructions: string;
+}
+
+export interface PatientNote {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  doctor_name: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SickSheet {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Treatment {
@@ -105,6 +136,20 @@ export interface BackupEntry {
     paymentCount: number;
 }
 
+export interface DbStats {
+  total_patients: number;
+  total_appointments: number;
+  total_treatments: number;
+  storage_used: string;
+  last_backup: string | null;
+}
+
+export interface ValidationResults {
+  orphaned_appointments: number;
+  orphaned_treatments: number;
+  duplicate_patients: number;
+}
+
 class DataManager {
   private static instance: DataManager;
 
@@ -144,6 +189,35 @@ class DataManager {
       allergies: updates.allergies ?? current.allergies,
       emergency_contact: updates.emergency_contact ?? current.emergency_contact,
       emergency_phone: updates.emergency_phone ?? current.emergency_phone,
+    });
+  }
+
+  public async getPatientNotes(patient_id: string): Promise<PatientNote[]> {
+    return await invoke<PatientNote[]>("list_patient_notes", { patientId: patient_id });
+  }
+
+  public async addPatientNote(note: Omit<PatientNote, "id" | "created_at" | "updated_at">): Promise<PatientNote> {
+    return await invoke<PatientNote>("create_patient_note", {
+      patientId: note.patient_id,
+      doctorId: note.doctor_id,
+      doctorName: note.doctor_name,
+      note: note.note
+    });
+  }
+
+  public async getSickSheets(patient_id: string): Promise<SickSheet[]> {
+    return await invoke<SickSheet[]>("list_sick_sheets", { patientId: patient_id });
+  }
+
+  public async addSickSheet(sheet: Omit<SickSheet, "id" | "created_at" | "updated_at">): Promise<SickSheet> {
+    return await invoke<SickSheet>("create_sick_sheet", {
+      patientId: sheet.patient_id,
+      patientName: sheet.patient_name,
+      doctorId: sheet.doctor_id,
+      doctorName: sheet.doctor_name,
+      startDate: sheet.start_date,
+      endDate: sheet.end_date,
+      reason: sheet.reason
     });
   }
 
@@ -223,6 +297,28 @@ class DataManager {
     await invoke("set_setting", { key, value });
   }
 
+  // Service methods
+  public async getServices(): Promise<Service[]> {
+    return await invoke<Service[]>("list_services");
+  }
+
+  public async addService(service: { name: string; standard_fee: number }): Promise<Service> {
+    return await invoke<Service>("create_service", { ...service });
+  }
+
+  public async deleteService(id: string): Promise<void> {
+    await invoke("delete_service", { id });
+  }
+
+  // Logo methods
+  public async saveLogo(base64Image: string): Promise<string> {
+    return await invoke<string>("save_logo", { base64Image });
+  }
+
+  public async getLogo(): Promise<string | null> {
+    return await invoke<string | null>("get_logo");
+  }
+
   // Lifecycle methods
   public async getWaiverRequests(): Promise<WaiverRequest[]> {
     return await invoke<WaiverRequest[]>("list_waiver_requests");
@@ -244,15 +340,34 @@ class DataManager {
     await invoke("update_doctor_status", { doctor_id, current_appointment_id });
   }
 
+  // Data Management methods
+  public async getStorageStats(): Promise<DbStats> {
+    return await invoke<DbStats>("get_db_stats");
+  }
+
+  public async validateData(): Promise<ValidationResults> {
+    return await invoke<ValidationResults>("validate_db_data");
+  }
+
+  public async cleanupOrphanedData(): Promise<{ cleaned: number }> {
+    const cleaned = await invoke<number>("cleanup_db_data");
+    return { cleaned };
+  }
+
+  public async createBackup(): Promise<string> {
+    return await invoke<string>("backup_db");
+  }
+
   // Mocked for DataManagement component to avoid errors for now
-  public getStorageStats() { return { totalPatients: 0, totalAppointments: 0, totalTreatments: 0, storageUsed: "0 KB", lastBackup: null }; }
   public getBackupHistory(): BackupEntry[] { return []; }
-  public validateData() { return { orphanedAppointments: 0, orphanedTreatments: 0, duplicatePatients: 0 }; }
-  public exportToFile(): void {}
+  public exportToFile(): void {
+    this.createBackup().then(() => {
+      // In a real app we might trigger a save dialog, but here we just create a backup file in the app data dir
+    });
+  }
   public exportToCSV(_dataType?: string): void {}
   public async importFromFile(_file?: File) { return { success: true, message: "Imported" }; }
   public restoreFromBackup(_id?: string) { return { success: true, message: "Restored" }; }
-  public cleanupOrphanedData() { return { cleaned: 0 }; }
   public clearAllData(): void {}
 }
 

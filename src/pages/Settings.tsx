@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { dataManager } from "@/lib/dataManager";
-import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check } from "lucide-react";
+import { dataManager, Service } from "@/lib/dataManager";
+import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check, Plus, Trash2, Stethoscope, Upload, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkForUpdates } from "@/lib/updater";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 interface NetworkInfo {
   mode: string;
@@ -21,26 +22,92 @@ const Settings = () => {
   const [receptionFee, setReceptionFee] = useState<string>("0");
   const [requirePaymentBeforeAdmit, setRequirePaymentBeforeAdmit] = useState<boolean>(true);
   const [autoUpdate, setAutoUpdate] = useState<boolean>(false);
+
+  // Branding settings
+  const [clinicName, setClinicName] = useState("");
+  const [clinicAddress, setClinicAddress] = useState("");
+  const [clinicPhone, setClinicPhone] = useState("");
+  const [clinicWebsite, setClinicWebsite] = useState("");
+  const [clinicTaxId, setClinicTaxId] = useState("");
+  const [clinicFooter, setClinicFooter] = useState("");
+  const [logo, setLogo] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [services, setServices] = useState<Service[]>([]);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceFee, setNewServiceFee] = useState("");
 
+  const userRole = user?.role;
   useEffect(() => {
     loadSettings();
     loadNetworkInfo();
-  }, []);
+    if (userRole === 'ADMIN') {
+      loadServices();
+    }
+
+    let unlisten: (() => void) | undefined;
+    const setupListener = async () => {
+      unlisten = await listen("sync-event", (event: { payload: { type: string } }) => {
+        if (event.payload?.type === "spoke_connected") {
+          toast.success("A new device has connected to the Hub!");
+        }
+      });
+    };
+    setupListener();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [userRole]);
+
+  const loadServices = async () => {
+    try {
+      const loadedServices = await dataManager.getServices();
+      setServices(loadedServices);
+    } catch {
+      toast.error("Failed to load services");
+    }
+  };
 
   const loadSettings = async () => {
     try {
-      const [fee, requirePay, autoUpd] = await Promise.all([
+      const [
+        fee,
+        requirePay,
+        autoUpd,
+        name,
+        address,
+        phone,
+        website,
+        taxId,
+        footer,
+        logoData
+      ] = await Promise.all([
         dataManager.getSetting("reception_fee"),
         dataManager.getSetting("require_payment_before_admit"),
-        dataManager.getSetting("auto_update")
+        dataManager.getSetting("auto_update"),
+        dataManager.getSetting("clinic_name"),
+        dataManager.getSetting("clinic_address"),
+        dataManager.getSetting("clinic_phone"),
+        dataManager.getSetting("clinic_website"),
+        dataManager.getSetting("clinic_tax_id"),
+        dataManager.getSetting("clinic_footer"),
+        dataManager.getLogo()
       ]);
       setReceptionFee(fee || "0");
       setRequirePaymentBeforeAdmit(requirePay === "true");
       setAutoUpdate(autoUpd === "true");
-    } catch {
+      setClinicName(name || "");
+      setClinicAddress(address || "");
+      setClinicPhone(phone || "");
+      setClinicWebsite(website || "");
+      setClinicTaxId(taxId || "");
+      setClinicFooter(footer || "");
+      setLogo(logoData);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to load settings");
     } finally {
       setIsLoading(false);
@@ -73,11 +140,34 @@ const Settings = () => {
     toast.success("Copied to clipboard");
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSave = async () => {
     try {
-      const promises = [
+      const promises: Promise<unknown>[] = [
         dataManager.setSetting("auto_update", autoUpdate.toString())
       ];
+
+      if (user?.role === 'ADMIN' || user?.role === 'DOCTOR') {
+        promises.push(dataManager.setSetting("clinic_name", clinicName));
+        promises.push(dataManager.setSetting("clinic_address", clinicAddress));
+        promises.push(dataManager.setSetting("clinic_phone", clinicPhone));
+        promises.push(dataManager.setSetting("clinic_website", clinicWebsite));
+        promises.push(dataManager.setSetting("clinic_tax_id", clinicTaxId));
+        promises.push(dataManager.setSetting("clinic_footer", clinicFooter));
+        if (logo && logo.startsWith('data:image')) {
+          promises.push(dataManager.saveLogo(logo));
+        }
+      }
 
       if (user?.role === 'ADMIN') {
         promises.push(dataManager.setSetting("reception_fee", receptionFee));
@@ -88,6 +178,35 @@ const Settings = () => {
       toast.success("Settings saved successfully");
     } catch {
       toast.error("Failed to save settings");
+    }
+  };
+
+  const handleAddService = async () => {
+    if (!newServiceName || !newServiceFee) {
+      toast.error("Please fill in both name and fee");
+      return;
+    }
+    try {
+      await dataManager.addService({
+        name: newServiceName,
+        standard_fee: parseFloat(newServiceFee)
+      });
+      setNewServiceName("");
+      setNewServiceFee("");
+      loadServices();
+      toast.success("Service added");
+    } catch {
+      toast.error("Failed to add service");
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    try {
+      await dataManager.deleteService(id);
+      loadServices();
+      toast.success("Service deleted");
+    } catch {
+      toast.error("Failed to delete service");
     }
   };
 
@@ -106,36 +225,173 @@ const Settings = () => {
         </div>
       </div>
 
-      {user?.role === 'ADMIN' && (
+      {(user?.role === 'ADMIN' || user?.role === 'DOCTOR') && (
         <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">
           <CardHeader className="bg-gray-50/50 border-b border-gray-200 py-3 px-4">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-900">Financial Settings</CardTitle>
-            <CardDescription className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Manage consultation fees and payment rules</CardDescription>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-900">Clinic Branding & Documents</CardTitle>
+            <CardDescription className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Configure how your clinic appears on printed documents</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 p-6">
-            <div className="grid w-full max-w-sm items-center gap-1.5">
-              <Label htmlFor="receptionFee">Standard Reception Fee ($)</Label>
-              <Input
-                type="number"
-                id="receptionFee"
-                value={receptionFee}
-                onChange={(e) => setReceptionFee(e.target.value)}
-                placeholder="50"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicName">Clinic Name</Label>
+                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="Main Dental Clinic" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicAddress">Address</Label>
+                  <Input id="clinicAddress" value={clinicAddress} onChange={(e) => setClinicAddress(e.target.value)} placeholder="123 Medical Way, City" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicPhone">Phone Number</Label>
+                  <Input id="clinicPhone" value={clinicPhone} onChange={(e) => setClinicPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicWebsite">Website</Label>
+                  <Input id="clinicWebsite" value={clinicWebsite} onChange={(e) => setClinicWebsite(e.target.value)} placeholder="www.dentalclinic.com" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicTaxId">Tax ID / License Number</Label>
+                  <Input id="clinicTaxId" value={clinicTaxId} onChange={(e) => setClinicTaxId(e.target.value)} placeholder="TX-123456789" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="clinicFooter">Custom Footer Text</Label>
+                  <Input id="clinicFooter" value={clinicFooter} onChange={(e) => setClinicFooter(e.target.value)} placeholder="Thank you for choosing our clinic." />
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="requirePayment"
-                checked={requirePaymentBeforeAdmit}
-                onChange={(e) => setRequirePaymentBeforeAdmit(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
-              />
-              <Label htmlFor="requirePayment">Require payment/waiver before admitting patient</Label>
+            <div className="space-y-2">
+              <Label>Clinic Logo</Label>
+              <div className="flex items-center space-x-4">
+                <div className="h-20 w-20 border-2 border-dashed border-gray-200 rounded-sm flex items-center justify-center bg-gray-50 overflow-hidden">
+                  {logo ? (
+                    <img src={logo} alt="Logo Preview" className="h-full w-full object-contain" />
+                  ) : (
+                    <ImageIcon className="h-8 w-8 text-gray-300" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    id="logo-upload"
+                  />
+                  <Label
+                    htmlFor="logo-upload"
+                    className="flex items-center justify-center h-9 px-4 rounded-sm border border-gray-200 bg-white text-xs font-semibold cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Logo
+                  </Label>
+                  <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">Recommended: Square PNG with transparent background</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {user?.role === 'ADMIN' && (
+        <>
+          <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-200 py-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-900">Financial Settings</CardTitle>
+              <CardDescription className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Manage consultation fees and payment rules</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              <div className="grid w-full max-w-sm items-center gap-1.5">
+                <Label htmlFor="receptionFee">Standard Reception Fee (KSH)</Label>
+                <Input
+                  type="number"
+                  id="receptionFee"
+                  value={receptionFee}
+                  onChange={(e) => setReceptionFee(e.target.value)}
+                  placeholder="50"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="requirePayment"
+                  checked={requirePaymentBeforeAdmit}
+                  onChange={(e) => setRequirePaymentBeforeAdmit(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                <Label htmlFor="requirePayment">Require payment/waiver before admitting patient</Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-200 py-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-900">Services & Fees</CardTitle>
+              <CardDescription className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Configure available treatments and their standard costs</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-gray-50 p-4 rounded-sm border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label htmlFor="serviceName" className="text-[10px] font-bold uppercase text-gray-500">Service Name</Label>
+                  <Input
+                    id="serviceName"
+                    value={newServiceName}
+                    onChange={(e) => setNewServiceName(e.target.value)}
+                    placeholder="e.g., Routine Cleaning"
+                    className="h-9 text-sm rounded-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="serviceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee (KSH)</Label>
+                  <Input
+                    id="serviceFee"
+                    type="number"
+                    value={newServiceFee}
+                    onChange={(e) => setNewServiceFee(e.target.value)}
+                    placeholder="1000"
+                    className="h-9 text-sm rounded-sm"
+                  />
+                </div>
+                <Button onClick={handleAddService} className="h-9 bg-primary hover:bg-primary/90 text-white font-semibold rounded-sm">
+                  <Plus className="h-4 w-4 mr-2" /> Add Service
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {services.map((service) => (
+                  <div key={service.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-sm hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-blue-50 text-primary rounded-sm">
+                        <Stethoscope size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{service.name}</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">KSH {service.standard_fee.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDeleteService(service.id)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
+                {services.length === 0 && (
+                  <div className="text-center py-10 border border-dashed border-gray-200 rounded-sm">
+                    <p className="text-sm text-gray-400 italic">No services configured yet</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">

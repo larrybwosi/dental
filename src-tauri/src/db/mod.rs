@@ -9,6 +9,7 @@ pub fn init_db(app_handle: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
     }
     let db_path = app_dir.join("dentist.db");
     let mut conn = Connection::open(db_path)?;
+    conn.execute("PRAGMA busy_timeout = 5000", [])?;
 
     init_schema(&mut conn)?;
 
@@ -225,6 +226,53 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
         [],
     )?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS patient_notes (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL,
+            doctor_id TEXT NOT NULL,
+            doctor_name TEXT NOT NULL,
+            note TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced',
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (doctor_id) REFERENCES users (id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS sick_sheets (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL,
+            patient_name TEXT NOT NULL,
+            doctor_id TEXT NOT NULL,
+            doctor_name TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced',
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (doctor_id) REFERENCES users (id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS services (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            standard_fee REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced'
+        )",
+        [],
+    )?;
+
     // Add columns to existing tables if they don't have them
     {
         let mut stmt = conn.prepare("PRAGMA table_info(appointments)")?;
@@ -248,7 +296,7 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
     }
 
     // Add sync_status to existing tables if they don't have it (for existing DBs)
-    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status"];
+    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status", "patient_notes", "sick_sheets", "services"];
     for table in tables {
         // First check if column exists to avoid errors
         let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
@@ -267,5 +315,6 @@ pub fn get_db_conn(app_handle: &tauri::AppHandle) -> Result<Connection, Box<dyn 
     let app_dir = app_handle.path().app_data_dir()?;
     let db_path = app_dir.join("dentist.db");
     let conn = Connection::open(db_path)?;
+    conn.execute("PRAGMA busy_timeout = 5000", [])?;
     Ok(conn)
 }
