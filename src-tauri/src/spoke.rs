@@ -8,7 +8,7 @@ use crate::commands::treatments::Treatment;
 use crate::commands::payments::Payment;
 use crate::hub::SyncResponse;
 use reqwest::Client;
-use log::{info, warn, error};
+use log::{info, warn, error, debug};
 
 pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, manual_addr: Option<String>) {
     let hub_address = Arc::new(Mutex::new(manual_addr));
@@ -39,10 +39,15 @@ pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, man
             if let ServiceEvent::ServiceResolved(info) = event {
                 let addr = info.get_addresses().iter().next();
                 if let Some(addr) = addr {
-                    let mut current_hub = hub_addr_clone.lock().unwrap();
-                    if current_hub.is_none() {
-                        *current_hub = Some(format!("{}:{}", addr, info.get_port()));
-                        println!("Discovered Hub at: {}", current_hub.as_ref().unwrap());
+                    if let Ok(mut current_hub) = hub_addr_clone.lock() {
+                        if let Some(hub_url) = current_hub.as_ref() {
+                             // Already have a hub
+                             debug!("Hub already discovered: {}", hub_url);
+                        } else {
+                            let hub_url = format!("{}:{}", addr, info.get_port());
+                            *current_hub = Some(hub_url.clone());
+                            info!("Discovered Hub at: {}", hub_url);
+                        }
                     }
                 }
             }
@@ -59,14 +64,18 @@ pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, man
 
         loop {
             let addr = {
-                let lock = hub_addr_sync.lock().unwrap();
-                lock.clone()
+                match hub_addr_sync.lock() {
+                    Ok(lock) => lock.clone(),
+                    Err(_) => None,
+                }
             };
 
             if let Some(addr) = addr {
                 let current_token = {
-                    let lock = pairing_token_sync.lock().unwrap();
-                    lock.clone()
+                    match pairing_token_sync.lock() {
+                        Ok(lock) => lock.clone(),
+                        Err(_) => None,
+                    }
                 };
 
                 if current_token.is_none() {
@@ -79,17 +88,20 @@ pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, man
                     if let Ok(response) = res {
                         if response.status().is_success() {
                             if let Ok(pair_res) = response.json::<crate::hub::PairResponse>().await {
-                                let mut lock = pairing_token_sync.lock().unwrap();
-                                *lock = Some(pair_res.token.clone());
-                                println!("Paired successfully with Hub at {}", addr);
+                                if let Ok(mut lock) = pairing_token_sync.lock() {
+                                    *lock = Some(pair_res.token.clone());
+                                    info!("Paired successfully with Hub at {}", addr);
+                                }
                             }
                         }
                     }
                 }
 
                 let token_to_use = {
-                    let lock = pairing_token_sync.lock().unwrap();
-                    lock.clone()
+                    match pairing_token_sync.lock() {
+                        Ok(lock) => lock.clone(),
+                        Err(_) => None,
+                    }
                 };
 
                 if let Some(token) = token_to_use {
@@ -107,18 +119,29 @@ pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, man
     tokio::spawn(async move {
         loop {
             let (addr, token) = {
-                let addr_lock = hub_addr_ws.lock().unwrap();
-                let token_lock = pairing_token_ws.lock().unwrap();
-                (addr_lock.clone(), token_lock.clone())
+                let addr_res = hub_addr_ws.lock();
+                let token_res = pairing_token_ws.lock();
+                match (addr_res, token_res) {
+                    (Ok(addr_lock), Ok(token_lock)) => (addr_lock.clone(), token_lock.clone()),
+                    _ => (None, None),
+                }
             };
 
             if let (Some(addr), Some(token)) = (addr, token) {
                 let url = format!("ws://{}/ws", addr);
-                let request = http::Request::builder()
+                let request_res = http::Request::builder()
                     .uri(url)
                     .header("Authorization", token)
-                    .body(())
-                    .unwrap();
+                    .body(());
+
+                let request = match request_res {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to build WebSocket request: {}", e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                        continue;
+                    }
+                };
 
                 if let Ok((mut socket, _)) = tokio_tungstenite::connect_async(request).await {
                     use futures_util::StreamExt;

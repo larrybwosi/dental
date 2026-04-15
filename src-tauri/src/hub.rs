@@ -45,7 +45,7 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
     let state = HubState {
         app_handle: app_handle.clone(),
         tx,
-        pairing_code,
+        pairing_code: pairing_code.clone(),
     };
 
     let auth_router = Router::new()
@@ -64,17 +64,37 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
         .merge(auth_router)
         .with_state(state);
 
-    let port = 8080;
-    info!("Attempting to bind Hub server to 0.0.0.0:{}", port);
-    let listener = match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await {
-        Ok(l) => l,
-        Err(e) => {
-            error!("Failed to bind Hub server to port {}: {}", port, e);
-            return Err(e.into());
+    let mut port = 8080;
+    let mut listener = None;
+
+    // Try multiple ports if 8080 is taken
+    for p in 8080..8090 {
+        info!("Attempting to bind Hub server to 0.0.0.0:{}", p);
+        match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", p)).await {
+            Ok(l) => {
+                port = p;
+                listener = Some(l);
+                break;
+            }
+            Err(e) => {
+                warn!("Failed to bind Hub server to port {}: {}", p, e);
+            }
+        }
+    }
+
+    let listener = match listener {
+        Some(l) => l,
+        None => {
+            let err_msg = "Could not bind Hub server to any port in range 8080-8089";
+            error!("{}", err_msg);
+            return Err(err_msg.into());
         }
     };
 
     info!("Hub server successfully bound to 0.0.0.0:{}", port);
+
+    // Update the pairing code to include the port if it's not the default?
+    // Actually, mDNS handles port discovery, but for manual entry it's useful.
 
     // Start mDNS in a separate task so it doesn't block or crash the server
     tokio::spawn(async move {
@@ -109,7 +129,10 @@ async fn start_mdns_discovery(port: u16) -> Result<ServiceDaemon, Box<dyn std::e
             warn!("Could not determine default local IP: {}. Trying fallback...", e);
             let ips = crate::commands::network::get_local_ips();
             if let Some(ip_str) = ips.first() {
-                ip_str.parse()?
+                match ip_str.parse() {
+                    Ok(ip) => ip,
+                    Err(e) => return Err(format!("Failed to parse fallback IP {}: {}", ip_str, e).into()),
+                }
             } else {
                 return Err("No local IP addresses found for mDNS".into());
             }
@@ -121,18 +144,26 @@ async fn start_mdns_discovery(port: u16) -> Result<ServiceDaemon, Box<dyn std::e
     let instance_name = "dentist_hub";
     let host_name = format!("{}.local.", instance_name);
     let properties: HashMap<String, String> = HashMap::new();
-    let service_info = ServiceInfo::new(
+
+    match ServiceInfo::new(
         service_type,
         instance_name,
         &host_name,
         my_ip.to_string(),
         port,
         properties,
-    )?.enable_addr_auto();
-
-    mdns.register(service_info)?;
-    info!("Registered mDNS service for IP: {}", my_ip);
-    Ok(mdns)
+    ) {
+        Ok(info) => {
+            let service_info = info.enable_addr_auto();
+            mdns.register(service_info)?;
+            info!("Registered mDNS service for IP: {}", my_ip);
+            Ok(mdns)
+        },
+        Err(e) => {
+            error!("Failed to create ServiceInfo for mDNS: {}", e);
+            Err(e.into())
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -175,8 +206,11 @@ async fn pair_handler(
     State(state): State<HubState>,
     Json(payload): Json<PairRequest>,
 ) -> impl IntoResponse {
-    let current_code = state.pairing_code.lock().unwrap();
-    if let Some(ref code) = *current_code {
+    let current_code_lock = match state.pairing_code.lock() {
+        Ok(l) => l,
+        Err(_) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal locking error").into_response(),
+    };
+    if let Some(ref code) = *current_code_lock {
         if code == &payload.code {
             let token = uuid::Uuid::new_v4().to_string();
             let conn = match get_db_conn(&state.app_handle) {
