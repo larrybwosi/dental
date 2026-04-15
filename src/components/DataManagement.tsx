@@ -493,51 +493,6 @@ const DataManagement = () => {
             </div>
           )}
 
-          <Separator className="bg-gray-100" />
-
-          {/* Danger Zone */}
-          <div className="bg-red-50/50 p-4 rounded-sm border border-red-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-red-900 flex items-center uppercase tracking-widest">
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Danger Zone
-                </h3>
-                <p className="text-[10px] text-red-700 mt-0.5">
-                  Permanently delete all practice data
-                </p>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" className="h-8 text-xs font-semibold rounded-sm">
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Clear All Data
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      all patients, appointments, treatments, and backup history
-                      from your local storage.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleClearAllData}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Yes, delete everything
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
