@@ -39,10 +39,11 @@ const Settings = () => {
   const [newServiceName, setNewServiceName] = useState("");
   const [newServiceFee, setNewServiceFee] = useState("");
 
+  const userRole = user?.role;
   useEffect(() => {
     loadSettings();
     loadNetworkInfo();
-    if (user?.role === 'ADMIN') {
+    if (userRole === 'ADMIN') {
       loadServices();
     }
 
@@ -59,7 +60,7 @@ const Settings = () => {
     return () => {
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [userRole]);
 
   const loadServices = async () => {
     try {

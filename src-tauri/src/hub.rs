@@ -11,7 +11,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use crate::db::get_db_conn;
 use crate::commands::patients::{Patient, PatientNote, SickSheet};
 use crate::commands::appointments::Appointment;

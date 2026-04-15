@@ -27,8 +27,8 @@ const WaitingRoom = () => {
 
   useEffect(() => {
     loadData();
-    const unlisten = listen("sync-event", (event) => {
-      const payload = event.payload as any;
+    const unlisten = listen<{ type: string; name?: string; doctor_id?: string; patient_name?: string }>("sync-event", (event) => {
+      const payload = event.payload;
       loadData();
       if (payload.type === "waiver_request" && user?.role === "DOCTOR") {
         toast.info("New waiver request received");
