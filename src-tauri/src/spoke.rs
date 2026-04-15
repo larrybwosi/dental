@@ -8,7 +8,7 @@ use crate::commands::treatments::Treatment;
 use crate::commands::payments::Payment;
 use crate::hub::SyncResponse;
 use reqwest::Client;
-use log::{info, warn, error};
+use log::{info, error};
 
 pub async fn start_spoke_client(app_handle: AppHandle, pairing_code: String, manual_addr: Option<String>) {
     let hub_address = Arc::new(Mutex::new(manual_addr));
