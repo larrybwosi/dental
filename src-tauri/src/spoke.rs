@@ -516,7 +516,7 @@ async fn push_sick_sheets(client: &Client, hub_addr: &str, token: &str, app_hand
 async fn push_payments(client: &Client, hub_addr: &str, token: &str, app_handle: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let payments: Vec<Payment> = {
         let conn = get_db_conn(app_handle)?;
-        let mut stmt = conn.prepare("SELECT id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at FROM payments WHERE sync_status = 'pending'")?;
+        let mut stmt = conn.prepare("SELECT id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, insurance_provider_id FROM payments WHERE sync_status = 'pending'")?;
         let rows = stmt.query_map([], |row| {
             Ok(Payment {
                 id: row.get(0)?,
@@ -530,6 +530,7 @@ async fn push_payments(client: &Client, hub_addr: &str, token: &str, app_handle:
                 notes: row.get(8)?,
                 created_at: row.get(9)?,
                 updated_at: row.get(10)?,
+                insurance_provider_id: row.get(11)?,
             })
         })?;
         rows.filter_map(|p| p.ok()).collect()
@@ -881,18 +882,20 @@ async fn pull_payments(client: &Client, hub_addr: &str, token: &str, app_handle:
         let sync_res: SyncResponse<Payment> = res.json().await?;
         for p in sync_res.data {
             let _ = conn.execute(
-                "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, sync_status)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')
+                "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, insurance_provider_id, sync_status)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')
                  ON CONFLICT(id) DO UPDATE SET
                     amount = excluded.amount,
                     status = excluded.status,
                     notes = excluded.notes,
                     updated_at = excluded.updated_at,
+                    insurance_provider_id = excluded.insurance_provider_id,
                     sync_status = 'synced'
                  WHERE excluded.updated_at > payments.updated_at",
                 rusqlite::params![
                     p.id, p.patient_id, p.patient_name, p.treatment_id, p.amount,
-                    p.date, p.method, p.status, p.notes, p.created_at, p.updated_at
+                    p.date, p.method, p.status, p.notes, p.created_at, p.updated_at,
+                    p.insurance_provider_id
                 ],
             );
         }

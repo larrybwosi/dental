@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Pill, DollarSign, Briefcase, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
-import { dataManager, Patient, Appointment, Treatment, Medication, Service } from "@/lib/dataManager";
+import { dataManager, Patient, Appointment, Treatment, Medication, Service, InsuranceProvider } from "@/lib/dataManager";
 import { calculateAge } from "@/lib/utils";
 
 interface TreatmentFormProps {
@@ -62,6 +62,9 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "insurance">("cash");
+  const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [formData, setFormData] = useState<Omit<Treatment, "id" | "created_at" | "updated_at">>({
     patient_id: treatment?.patient_id || "",
     patient_name: treatment?.patient_name || "",
@@ -77,14 +80,16 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
 
   useEffect(() => {
     const loadOptions = async () => {
-        const [pts, apts, svcs] = await Promise.all([
+        const [pts, apts, svcs, providers] = await Promise.all([
             dataManager.getPatients(),
             dataManager.getAppointments(),
-            dataManager.getServices()
+            dataManager.getServices(),
+            dataManager.getInsuranceProviders()
         ]);
         setPatients(pts);
         setAppointments(apts);
         setServices(svcs);
+        setInsuranceProviders(providers);
     };
     loadOptions();
   }, []);
@@ -107,7 +112,8 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
           patient_name: formData.patient_name,
           amount: formData.cost,
           date: formData.date,
-          method: "cash",
+          method: paymentMethod,
+          insurance_provider_id: paymentMethod === "insurance" ? selectedProviderId : undefined,
           status: "pending",
           notes: `Service Fee for Treatment: ${formData.diagnosis}`,
         });
@@ -326,8 +332,46 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
             placeholder="0.00"
             className="h-9 text-sm rounded-sm border-gray-200"
           />
-          <p className="text-[9px] text-gray-400 italic">Added to patient's bill for checkout.</p>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Payment Method</Label>
+          <Select
+            value={paymentMethod}
+            onValueChange={(value: "cash" | "insurance") => setPaymentMethod(value)}
+          >
+            <SelectTrigger className="h-9 text-sm rounded-sm border-gray-200">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="insurance">Insurance</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {paymentMethod === "insurance" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Insurance Provider</Label>
+            <Select
+              value={selectedProviderId}
+              onValueChange={setSelectedProviderId}
+            >
+              <SelectTrigger className="h-9 text-sm rounded-sm border-gray-200">
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {insuranceProviders.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="space-y-1.5">

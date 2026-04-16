@@ -300,6 +300,18 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
         [],
     )?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS insurance_providers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            pays_reception_fee BOOLEAN DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'synced'
+        )",
+        [],
+    )?;
+
     // Add columns to existing tables if they don't have them
     {
         let mut stmt = conn.prepare("PRAGMA table_info(appointments)")?;
@@ -322,8 +334,20 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
         }
     }
 
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(payments)")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(row.get::<_, String>(1)?)
+        })?;
+        let columns: Vec<String> = rows.filter_map(|r| r.ok()).collect();
+
+        if !columns.contains(&"insurance_provider_id".to_string()) {
+            let _ = conn.execute("ALTER TABLE payments ADD COLUMN insurance_provider_id TEXT", []);
+        }
+    }
+
     // Add sync_status to existing tables if they don't have it (for existing DBs)
-    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status", "patient_notes", "sick_sheets", "services"];
+    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status", "patient_notes", "sick_sheets", "services", "insurance_providers"];
     for table in tables {
         // First check if column exists to avoid errors
         let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
