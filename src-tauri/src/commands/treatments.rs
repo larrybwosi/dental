@@ -161,3 +161,75 @@ pub fn create_treatment(
         updated_at: now,
     })
 }
+
+#[command]
+pub fn update_treatment(
+    app_handle: AppHandle,
+    id: String,
+    patient_id: String,
+    patient_name: String,
+    appointment_id: String,
+    date: String,
+    diagnosis: Option<String>,
+    treatment_desc: Option<String>,
+    medications: Vec<Medication>,
+    notes: Option<String>,
+    follow_up_date: Option<String>,
+    cost: f64,
+) -> Result<(), String> {
+    let mut conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
+        "UPDATE treatments SET patient_id = ?1, patient_name = ?2, appointment_id = ?3, date = ?4, diagnosis = ?5, treatment = ?6, notes = ?7, follow_up_date = ?8, cost = ?9, updated_at = ?10, sync_status = 'pending' WHERE id = ?11",
+        rusqlite::params![
+            patient_id,
+            patient_name,
+            appointment_id,
+            date,
+            diagnosis,
+            treatment_desc,
+            notes,
+            follow_up_date,
+            cost,
+            now,
+            id
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    // Simplest way to update medications is to delete and re-insert
+    tx.execute("DELETE FROM medications WHERE treatment_id = ?1", [&id]).map_err(|e| e.to_string())?;
+
+    for med in &medications {
+        tx.execute(
+            "INSERT INTO medications (id, treatment_id, name, dosage, frequency, duration, instructions, sync_status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending')",
+            rusqlite::params![
+                med.id,
+                id,
+                med.name,
+                med.dosage,
+                med.frequency,
+                med.duration,
+                med.instructions
+            ],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[command]
+pub fn delete_treatment(app_handle: AppHandle, id: String) -> Result<(), String> {
+    let mut conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute("DELETE FROM medications WHERE treatment_id = ?1", [&id]).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM treatments WHERE id = ?1", [&id]).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}

@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format, parseISO, isValid } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   FileText,
   Calendar,
@@ -23,6 +30,18 @@ const Reports = () => {
   const [endDate, setEndDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+
+  const handleStartDateChange = (date: Date | undefined) => {
+    if (date) {
+      setStartDate(format(date, "yyyy-MM-dd"));
+    }
+  };
+
+  const handleEndDateChange = (date: Date | undefined) => {
+    if (date) {
+      setEndDate(format(date, "yyyy-MM-dd"));
+    }
+  };
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -177,23 +196,61 @@ const Reports = () => {
 
             <div className="space-y-2">
               <Label htmlFor="start-date" className="text-xs">Start Date</Label>
-              <Input
-                id="start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 text-sm rounded-sm"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {startDate && isValid(parseISO(startDate)) ? (
+                      format(parseISO(startDate), "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={startDate && isValid(parseISO(startDate)) ? parseISO(startDate) : undefined}
+                    onSelect={handleStartDateChange}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date" className="text-xs">End Date</Label>
-              <Input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 text-sm rounded-sm"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {endDate && isValid(parseISO(endDate)) ? (
+                      format(parseISO(endDate), "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={endDate && isValid(parseISO(endDate)) ? parseISO(endDate) : undefined}
+                    onSelect={handleEndDateChange}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <Button
               className="w-full mt-2 bg-[#0078d4] hover:bg-[#005a9e] text-white rounded-sm"

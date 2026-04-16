@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format, parseISO, isValid, startOfToday } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -13,7 +21,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Pill, DollarSign, Briefcase } from "lucide-react";
+import { Plus, Trash2, Pill, DollarSign, Briefcase, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 import { dataManager, Patient, Appointment, Treatment, Medication, Service } from "@/lib/dataManager";
 import { calculateAge } from "@/lib/utils";
@@ -188,6 +196,18 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
     (a) => a.patient_id === formData.patient_id
   );
 
+  const handleDateChange = (date: Date | undefined) => {
+    if (date) {
+      setFormData((prev) => ({ ...prev, date: format(date, "yyyy-MM-dd") }));
+    }
+  };
+
+  const handleFollowUpDateChange = (date: Date | undefined) => {
+    if (date) {
+      setFormData((prev) => ({ ...prev, follow_up_date: format(date, "yyyy-MM-dd") }));
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Patient and Appointment Selection */}
@@ -255,16 +275,35 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
 
         <div className="space-y-1.5">
           <Label htmlFor="date" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Treatment Date *</Label>
-          <Input
-            id="date"
-            type="date"
-            value={formData.date}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, date: e.target.value }))
-            }
-            className="h-9 text-sm rounded-sm border-gray-200"
-            required
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                  !formData.date && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formData.date && isValid(parseISO(formData.date)) ? (
+                  format(parseISO(formData.date), "PPP")
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={formData.date && isValid(parseISO(formData.date)) ? parseISO(formData.date) : undefined}
+                onSelect={handleDateChange}
+                disabled={(date) =>
+                  date > new Date()
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-1.5">
@@ -453,19 +492,35 @@ const TreatmentForm = ({ treatment, onSave, onCancel }: TreatmentFormProps) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="follow_up_date" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Follow-up Date</Label>
-          <Input
-            id="follow_up_date"
-            type="date"
-            value={formData.follow_up_date}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                follow_up_date: e.target.value,
-              }))
-            }
-            min={new Date().toISOString().split("T")[0]}
-            className="h-9 text-sm rounded-sm border-gray-200"
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                  !formData.follow_up_date && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formData.follow_up_date && isValid(parseISO(formData.follow_up_date)) ? (
+                  format(parseISO(formData.follow_up_date), "PPP")
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={formData.follow_up_date && isValid(parseISO(formData.follow_up_date)) ? parseISO(formData.follow_up_date) : undefined}
+                onSelect={handleFollowUpDateChange}
+                disabled={(date) =>
+                  date < startOfToday()
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 

@@ -170,7 +170,17 @@ class DataManager {
   public async addPatient(
     patient: Omit<Patient, "id" | "created_at" | "updated_at">
   ): Promise<Patient> {
-    return await invoke<Patient>("create_patient", { ...patient });
+    return await invoke<Patient>("create_patient", {
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      dateOfBirth: patient.date_of_birth,
+      address: patient.address,
+      medicalHistory: patient.medical_history,
+      allergies: patient.allergies,
+      emergencyContact: patient.emergency_contact,
+      emergencyPhone: patient.emergency_phone
+    });
   }
 
   public async updatePatient(id: string, updates: Partial<Patient>): Promise<void> {
@@ -183,12 +193,12 @@ class DataManager {
       name: updates.name ?? current.name,
       phone: updates.phone ?? current.phone,
       email: updates.email ?? current.email,
-      date_of_birth: updates.date_of_birth ?? current.date_of_birth,
+      dateOfBirth: updates.date_of_birth ?? current.date_of_birth,
       address: updates.address ?? current.address,
-      medical_history: updates.medical_history ?? current.medical_history,
+      medicalHistory: updates.medical_history ?? current.medical_history,
       allergies: updates.allergies ?? current.allergies,
-      emergency_contact: updates.emergency_contact ?? current.emergency_contact,
-      emergency_phone: updates.emergency_phone ?? current.emergency_phone,
+      emergencyContact: updates.emergency_contact ?? current.emergency_contact,
+      emergencyPhone: updates.emergency_phone ?? current.emergency_phone,
     });
   }
 
@@ -229,7 +239,18 @@ class DataManager {
   public async addAppointment(
     appointment: Omit<Appointment, "id" | "created_at" | "updated_at">
   ): Promise<Appointment> {
-    return await invoke<Appointment>("create_appointment", { ...appointment });
+    return await invoke<Appointment>("create_appointment", {
+      patientId: appointment.patient_id,
+      patientName: appointment.patient_name,
+      doctorId: appointment.doctor_id,
+      doctorName: appointment.doctor_name,
+      date: appointment.date,
+      time: appointment.time,
+      status: appointment.status,
+      appointmentType: appointment.appointment_type,
+      notes: appointment.notes,
+      duration: appointment.duration
+    });
   }
 
   public async updateAppointment(
@@ -242,16 +263,16 @@ class DataManager {
 
     await invoke("update_appointment", {
       id,
-      doctor_id: updates.doctor_id ?? current.doctor_id,
-      doctor_name: updates.doctor_name ?? current.doctor_name,
+      doctorId: updates.doctor_id ?? current.doctor_id,
+      doctorName: updates.doctor_name ?? current.doctor_name,
       date: updates.date ?? current.date,
       time: updates.time ?? current.time,
       status: updates.status ?? current.status,
-      appointment_type: updates.appointment_type ?? current.appointment_type,
+      appointmentType: updates.appointment_type ?? current.appointment_type,
       notes: updates.notes ?? current.notes,
       duration: updates.duration ?? current.duration,
-      reception_fee_paid: updates.reception_fee_paid ?? current.reception_fee_paid,
-      reception_fee_waived: updates.reception_fee_waived ?? current.reception_fee_waived,
+      receptionFeePaid: updates.reception_fee_paid ?? current.reception_fee_paid,
+      receptionFeeWaived: updates.reception_fee_waived ?? current.reception_fee_waived,
     });
   }
 
@@ -268,9 +289,40 @@ class DataManager {
     treatment: Omit<Treatment, "id" | "created_at" | "updated_at">
   ): Promise<Treatment> {
     return await invoke<Treatment>("create_treatment", {
-        ...treatment,
-        treatment_desc: treatment.treatment
+      patientId: treatment.patient_id,
+      patientName: treatment.patient_name,
+      appointmentId: treatment.appointment_id,
+      date: treatment.date,
+      diagnosis: treatment.diagnosis,
+      treatmentDesc: treatment.treatment,
+      medications: treatment.medications,
+      notes: treatment.notes,
+      followUpDate: treatment.follow_up_date,
+      cost: treatment.cost
     });
+  }
+
+  public async updateTreatment(
+    id: string,
+    treatment: Omit<Treatment, "id" | "created_at" | "updated_at">
+  ): Promise<void> {
+    await invoke("update_treatment", {
+      id,
+      patientId: treatment.patient_id,
+      patientName: treatment.patient_name,
+      appointmentId: treatment.appointment_id,
+      date: treatment.date,
+      diagnosis: treatment.diagnosis,
+      treatmentDesc: treatment.treatment,
+      medications: treatment.medications,
+      notes: treatment.notes,
+      followUpDate: treatment.follow_up_date,
+      cost: treatment.cost
+    });
+  }
+
+  public async deleteTreatment(id: string): Promise<void> {
+    await invoke("delete_treatment", { id });
   }
 
   // Payment methods
@@ -281,7 +333,16 @@ class DataManager {
   public async addPayment(
     payment: Omit<Payment, "id" | "created_at" | "updated_at">
   ): Promise<Payment> {
-    return await invoke<Payment>("create_payment", { ...payment });
+    return await invoke<Payment>("create_payment", {
+      patientId: payment.patient_id,
+      patientName: payment.patient_name,
+      treatmentId: payment.treatment_id,
+      amount: payment.amount,
+      date: payment.date,
+      method: payment.method,
+      status: payment.status,
+      notes: payment.notes
+    });
   }
 
   // Settings methods
@@ -303,7 +364,10 @@ class DataManager {
   }
 
   public async addService(service: { name: string; standard_fee: number }): Promise<Service> {
-    return await invoke<Service>("create_service", { ...service });
+    return await invoke<Service>("create_service", {
+      name: service.name,
+      standardFee: service.standard_fee
+    });
   }
 
   public async deleteService(id: string): Promise<void> {

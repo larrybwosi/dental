@@ -31,7 +31,7 @@ import {
   Edit,
   Phone,
   Mail,
-  Calendar,
+  Calendar as CalendarIcon,
   AlertTriangle,
   Users,
   History,
@@ -47,6 +47,14 @@ import { calculateAge } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format, parseISO, isValid } from "date-fns";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -77,6 +85,12 @@ const Patients = () => {
     end_date: new Date().toISOString().split("T")[0],
     reason: "",
   });
+
+  const handleSickSheetDateChange = (field: 'start_date' | 'end_date', date: Date | undefined) => {
+    if (date) {
+      setNewSickSheet(prev => ({ ...prev, [field]: format(date, "yyyy-MM-dd") }));
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -487,7 +501,7 @@ const Patients = () => {
                   <span className="bg-blue-100 text-primary px-2 py-0.5 rounded-sm font-semibold mr-3">
                     ID: {viewingHistory?.id.slice(0, 8).toUpperCase()}
                   </span>
-                  <Calendar className="h-3 w-3 mr-1" />
+                  <CalendarIcon className="h-3 w-3 mr-1" />
                   Born: {viewingHistory?.date_of_birth} ({calculateAge(viewingHistory?.date_of_birth || "")} yrs)
                 </div>
               </div>
@@ -519,7 +533,7 @@ const Patients = () => {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center">
-                    <Calendar className="h-4 w-4 mr-2 text-blue-500" />
+                    <CalendarIcon className="h-4 w-4 mr-2 text-blue-500" />
                     Past Appointments
                   </CardTitle>
                 </CardHeader>
@@ -628,7 +642,7 @@ const Patients = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-gray-900 flex items-center text-sm uppercase tracking-wider">
-                  <Calendar className="h-4 w-4 mr-2 text-primary" />
+                  <CalendarIcon className="h-4 w-4 mr-2 text-primary" />
                   Sick Sheets
                 </h4>
                 {(user?.role === "DOCTOR" || user?.role === "ADMIN") && (
@@ -647,21 +661,61 @@ const Patients = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase text-gray-500">Start Date</Label>
-                            <Input
-                              type="date"
-                              value={newSickSheet.start_date}
-                              onChange={(e) => setNewSickSheet(prev => ({ ...prev, start_date: e.target.value }))}
-                              className="h-9 text-sm rounded-sm"
-                            />
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                                    !newSickSheet.start_date && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {newSickSheet.start_date && isValid(parseISO(newSickSheet.start_date)) ? (
+                                    format(parseISO(newSickSheet.start_date), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={newSickSheet.start_date && isValid(parseISO(newSickSheet.start_date)) ? parseISO(newSickSheet.start_date) : undefined}
+                                  onSelect={(date) => handleSickSheetDateChange('start_date', date)}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase text-gray-500">End Date</Label>
-                            <Input
-                              type="date"
-                              value={newSickSheet.end_date}
-                              onChange={(e) => setNewSickSheet(prev => ({ ...prev, end_date: e.target.value }))}
-                              className="h-9 text-sm rounded-sm"
-                            />
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal h-9 text-sm rounded-sm border-gray-200",
+                                    !newSickSheet.end_date && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {newSickSheet.end_date && isValid(parseISO(newSickSheet.end_date)) ? (
+                                    format(parseISO(newSickSheet.end_date), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={newSickSheet.end_date && isValid(parseISO(newSickSheet.end_date)) ? parseISO(newSickSheet.end_date) : undefined}
+                                  onSelect={(date) => handleSickSheetDateChange('end_date', date)}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         </div>
                         <div className="space-y-1.5">

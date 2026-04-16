@@ -38,6 +38,8 @@ pub fn run() {
       commands::appointments::delete_appointment,
       commands::treatments::list_treatments,
       commands::treatments::create_treatment,
+      commands::treatments::update_treatment,
+      commands::treatments::delete_treatment,
       commands::payments::list_payments,
       commands::payments::create_payment,
       commands::network::start_as_hub,

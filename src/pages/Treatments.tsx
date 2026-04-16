@@ -44,6 +44,7 @@ const Treatments = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [viewingTreatment, setViewingTreatment] = useState<Treatment | null>(null);
+  const [editingTreatment, setEditingTreatment] = useState<Treatment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -72,6 +73,33 @@ const Treatments = () => {
       toast.success("Treatment recorded successfully");
     } catch {
       toast.error("Failed to record treatment");
+    }
+  };
+
+  const handleEditTreatment = async (
+    treatmentData: Omit<Treatment, "id" | "created_at" | "updated_at">
+  ) => {
+    if (!editingTreatment) return;
+    try {
+      // Since there's no updateTreatment in dataManager, we'll implement it or use a delete/add approach
+      // For now, let's assume we can add it to dataManager
+      await dataManager.updateTreatment(editingTreatment.id, treatmentData);
+      setEditingTreatment(null);
+      toast.success("Treatment updated successfully");
+      loadTreatments();
+    } catch {
+      toast.error("Failed to update treatment");
+    }
+  };
+
+  const handleDeleteTreatment = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this treatment record?")) return;
+    try {
+      await dataManager.deleteTreatment(id);
+      await loadTreatments();
+      toast.success("Treatment record deleted");
+    } catch {
+      toast.error("Failed to delete treatment");
     }
   };
 
@@ -186,11 +214,19 @@ const Treatments = () => {
                             <DropdownMenuItem onClick={() => setViewingTreatment(treatment)}>
                               <FileText className="h-4 w-4 mr-2" /> View Details
                             </DropdownMenuItem>
+                            {user?.role === "DOCTOR" && (
+                              <DropdownMenuItem onClick={() => setEditingTreatment(treatment)}>
+                                <Plus className="h-4 w-4 mr-2" /> Edit Record
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => pdfGenerator.generatePrescription(treatment, treatment.medications)}>
                               <Download className="h-4 w-4 mr-2" /> Download Rx
                             </DropdownMenuItem>
                             {user?.role === "DOCTOR" && (
-                              <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteTreatment(treatment.id)}
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              >
                                 <Trash2 className="h-4 w-4 mr-2" /> Delete Record
                               </DropdownMenuItem>
                             )}
@@ -250,6 +286,28 @@ const Treatments = () => {
           </Card>
         )}
       </div>
+
+      {/* Edit Treatment Dialog */}
+      <Dialog
+        open={!!editingTreatment}
+        onOpenChange={() => setEditingTreatment(null)}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Treatment</DialogTitle>
+            <DialogDescription>
+              Update diagnosis and treatment details.
+            </DialogDescription>
+          </DialogHeader>
+          {editingTreatment && (
+            <TreatmentForm
+              treatment={editingTreatment}
+              onSave={handleEditTreatment}
+              onCancel={() => setEditingTreatment(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* View Treatment Details Dialog */}
       <Dialog
