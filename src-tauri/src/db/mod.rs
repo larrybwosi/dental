@@ -4,15 +4,17 @@ use tauri::Manager;
 
 pub fn init_db(app_handle: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let app_dir = app_handle.path().app_data_dir().map_err(|e| {
-        log::error!("Failed to get app data directory: {}", e);
-        e
+        let msg = format!("Failed to get app data directory: {}", e);
+        log::error!("{}", msg);
+        msg
     })?;
 
     if !app_dir.exists() {
         log::info!("Creating app data directory: {:?}", app_dir);
         fs::create_dir_all(&app_dir).map_err(|e| {
-            log::error!("Failed to create app data directory: {}", e);
-            e
+            let msg = format!("Failed to create app data directory at {:?}: {}", app_dir, e);
+            log::error!("{}", msg);
+            msg
         })?;
     }
 
@@ -20,8 +22,9 @@ pub fn init_db(app_handle: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
     log::info!("Opening database at: {:?}", db_path);
 
     let mut conn = Connection::open(&db_path).map_err(|e| {
-        log::error!("Failed to open database: {}", e);
-        e
+        let msg = format!("Failed to open database at {:?}: {}", db_path, e);
+        log::error!("{}", msg);
+        msg
     })?;
 
     conn.execute("PRAGMA busy_timeout = 5000", []).map_err(|e| {

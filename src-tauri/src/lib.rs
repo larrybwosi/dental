@@ -69,10 +69,20 @@ pub fn run() {
 
       if let Err(e) = db::init_db(app.handle()) {
           log::error!("CRITICAL: Failed to initialize database: {}", e);
-          // Database is essential for the application to function.
-          // We return the error here which will cause the application to exit,
-          // but now with a clear error logged.
-          return Err(e.into());
+
+          let handle = app.handle().clone();
+          let error_msg = e.to_string();
+          tauri::async_runtime::spawn(async move {
+              let _ = tauri_plugin_dialog::DialogExt::dialog(&handle)
+                  .message(format!("The application failed to initialize the database and must close.\n\nError: {}", error_msg))
+                  .title("Critical Error")
+                  .kind(tauri_plugin_dialog::MessageDialogKind::Error)
+                  .show(|_| {
+                      std::process::exit(1);
+                  });
+          });
+
+          return Ok(()); // Return Ok to allow the dialog to show before the app might close, but the exit(1) above handles termination.
       }
 
       log::info!("Database initialized successfully.");

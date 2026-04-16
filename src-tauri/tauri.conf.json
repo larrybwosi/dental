@@ -38,7 +38,7 @@
   },
   "plugins": {
     "updater": {
-      "active": true,
+      "active": false,
       "endpoints": [
         "https://github.com/rodneydean/dental/releases/latest/download/latest.json"
       ],
