@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { dataManager, Service } from "@/lib/dataManager";
-import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check, Plus, Trash2, Stethoscope, Upload, Image as ImageIcon } from "lucide-react";
+import { dataManager, Service, InsuranceProvider } from "@/lib/dataManager";
+import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check, Plus, Trash2, Stethoscope, Upload, Image as ImageIcon, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkForUpdates } from "@/lib/updater";
 import { invoke } from "@tauri-apps/api/core";
@@ -39,12 +39,17 @@ const Settings = () => {
   const [newServiceName, setNewServiceName] = useState("");
   const [newServiceFee, setNewServiceFee] = useState("");
 
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+  const [newProviderName, setNewProviderName] = useState("");
+  const [providerPaysReception, setProviderPaysReception] = useState(false);
+
   const userRole = user?.role;
   useEffect(() => {
     loadSettings();
     loadNetworkInfo();
     if (userRole === 'ADMIN') {
       loadServices();
+      loadInsuranceProviders();
     }
 
     let unlisten: (() => void) | undefined;
@@ -68,6 +73,15 @@ const Settings = () => {
       setServices(loadedServices);
     } catch {
       toast.error("Failed to load services");
+    }
+  };
+
+  const loadInsuranceProviders = async () => {
+    try {
+      const loadedProviders = await dataManager.getInsuranceProviders();
+      setInsuranceProviders(loadedProviders);
+    } catch {
+      toast.error("Failed to load insurance providers");
     }
   };
 
@@ -210,6 +224,35 @@ const Settings = () => {
     }
   };
 
+  const handleAddProvider = async () => {
+    if (!newProviderName) {
+      toast.error("Please fill in provider name");
+      return;
+    }
+    try {
+      await dataManager.addInsuranceProvider({
+        name: newProviderName,
+        pays_reception_fee: providerPaysReception
+      });
+      setNewProviderName("");
+      setProviderPaysReception(false);
+      loadInsuranceProviders();
+      toast.success("Insurance provider added");
+    } catch {
+      toast.error("Failed to add insurance provider");
+    }
+  };
+
+  const handleDeleteProvider = async (id: string) => {
+    try {
+      await dataManager.deleteInsuranceProvider(id);
+      loadInsuranceProviders();
+      toast.success("Insurance provider deleted");
+    } catch {
+      toast.error("Failed to delete insurance provider");
+    }
+  };
+
   if (isLoading) return <div>Loading settings...</div>;
 
   return (
@@ -324,6 +367,71 @@ const Settings = () => {
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
                 />
                 <Label htmlFor="requirePayment">Require payment/waiver before admitting patient</Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-200 py-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-900">Insurance Providers</CardTitle>
+              <CardDescription className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Setup insurance providers and their coverage rules</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-gray-50 p-4 rounded-sm border border-gray-100">
+                <div className="space-y-1.5 md:col-span-1">
+                  <Label htmlFor="providerName" className="text-[10px] font-bold uppercase text-gray-500">Provider Name</Label>
+                  <Input
+                    id="providerName"
+                    value={newProviderName}
+                    onChange={(e) => setNewProviderName(e.target.value)}
+                    placeholder="e.g., Aetna"
+                    className="h-9 text-sm rounded-sm"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 pb-2 md:pb-0 h-9">
+                  <input
+                    type="checkbox"
+                    id="paysReception"
+                    checked={providerPaysReception}
+                    onChange={(e) => setProviderPaysReception(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                  />
+                  <Label htmlFor="paysReception" className="text-[10px] font-bold uppercase text-gray-500">Covers Reception Fee</Label>
+                </div>
+                <Button onClick={handleAddProvider} className="h-9 bg-primary hover:bg-primary/90 text-white font-semibold rounded-sm">
+                  <Plus className="h-4 w-4 mr-2" /> Add Provider
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {insuranceProviders.map((provider) => (
+                  <div key={provider.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-sm hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-purple-50 text-purple-600 rounded-sm">
+                        <ShieldCheck size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{provider.name}</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                          {provider.pays_reception_fee ? "Covers Reception Fee" : "Treatments Only"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDeleteProvider(provider.id)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
+                {insuranceProviders.length === 0 && (
+                  <div className="text-center py-10 border border-dashed border-gray-200 rounded-sm">
+                    <p className="text-sm text-gray-400 italic">No insurance providers configured yet</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

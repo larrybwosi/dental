@@ -15,6 +15,14 @@ export interface Patient {
   updated_at: string;
 }
 
+export interface InsuranceProvider {
+  id: string;
+  name: string;
+  pays_reception_fee: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Appointment {
   id: string;
   patient_id: string;
@@ -119,9 +127,10 @@ export interface Payment {
   treatment_id?: string;
   amount: number;
   date: string;
-  method: "cash" | "card" | "transfer";
+  method: "cash" | "insurance";
   status: "pending" | "paid";
   notes: string;
+  insurance_provider_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -308,6 +317,19 @@ class DataManager {
 
   public async deleteService(id: string): Promise<void> {
     await invoke("delete_service", { id });
+  }
+
+  // Insurance provider methods
+  public async getInsuranceProviders(): Promise<InsuranceProvider[]> {
+    return await invoke<InsuranceProvider[]>("list_insurance_providers");
+  }
+
+  public async addInsuranceProvider(provider: { name: string; pays_reception_fee: boolean }): Promise<InsuranceProvider> {
+    return await invoke<InsuranceProvider>("create_insurance_provider", { ...provider });
+  }
+
+  public async deleteInsuranceProvider(id: string): Promise<void> {
+    await invoke("delete_insurance_provider", { id });
   }
 
   // Logo methods
