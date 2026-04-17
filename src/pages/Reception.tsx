@@ -31,7 +31,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
-import { dataManager, Patient, Appointment } from "@/lib/dataManager";
+import { dataManager, Patient, Appointment, InsuranceProvider } from "@/lib/dataManager";
 import { toast } from "sonner";
 import PatientForm from "@/components/PatientForm";
 import AppointmentForm from "@/components/AppointmentForm";
@@ -50,20 +50,23 @@ const Reception = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [receptionFee, setReceptionFee] = useState<number>(0);
   const [requirePayment, setRequirePayment] = useState<boolean>(true);
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [pts, apts, , fee, reqPay] = await Promise.all([
+      const [pts, apts, , fee, reqPay, providers] = await Promise.all([
         dataManager.getPatients(),
         dataManager.getAppointments(),
         dataManager.getPayments(),
         dataManager.getSetting("reception_fee"),
-        dataManager.getSetting("require_payment_before_admit")
+        dataManager.getSetting("require_payment_before_admit"),
+        dataManager.getInsuranceProviders()
       ]);
       setPatients(pts);
       setAppointments(apts);
       setReceptionFee(Number(fee || 0));
       setRequirePayment(reqPay === "true");
+      setInsuranceProviders(providers);
     } catch (error) {
       console.error("Failed to load reception data", error);
       toast.error("Failed to load dashboard data");
@@ -153,7 +156,7 @@ const Reception = () => {
     }
   };
 
-  const handlePayFee = async (appt: Appointment) => {
+  const handlePayFee = async (appt: Appointment, method: "cash" | "insurance" = "cash", providerId?: string) => {
     try {
       await dataManager.updateAppointment(appt.id, { reception_fee_paid: true });
       await dataManager.addPayment({
@@ -161,7 +164,8 @@ const Reception = () => {
         patient_name: appt.patient_name,
         amount: receptionFee,
         date: new Date().toISOString(),
-        method: "cash",
+        method: method,
+        insurance_provider_id: providerId,
         status: "paid",
         notes: "Reception Fee",
       });
@@ -348,18 +352,39 @@ const Reception = () => {
                         </div>
 
                         <div className="flex items-center space-x-3">
-                          <div className="text-right">
+                          <div className="flex flex-col items-end gap-1.5">
                              {!appt.reception_fee_paid && !appt.reception_fee_waived ? (
-                               <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-[10px] font-bold uppercase border-green-200 text-green-700 hover:bg-green-50 rounded-sm"
-                                onClick={() => handlePayFee(appt)}
-                               >
-                                 <CreditCard className="h-3 w-3 mr-1" /> Pay KSH {receptionFee}
-                               </Button>
+                               <>
+                                 <div className="flex items-center gap-1.5">
+                                   <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[10px] font-bold uppercase border-green-200 text-green-700 hover:bg-green-50 rounded-sm"
+                                    onClick={() => handlePayFee(appt)}
+                                   >
+                                     <CreditCard className="h-3 w-3 mr-1" /> Pay KSH {receptionFee}
+                                   </Button>
+                                 </div>
+                                 {insuranceProviders.filter(p => p.pays_reception_fee).length > 0 && (
+                                   <div className="flex flex-wrap justify-end gap-1 max-w-[200px]">
+                                     {insuranceProviders.filter(p => p.pays_reception_fee).map(p => (
+                                       <Button
+                                         key={p.id}
+                                         size="sm"
+                                         variant="outline"
+                                         className="h-6 px-2 text-[9px] font-bold uppercase tracking-wider border-purple-100 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-sm"
+                                         onClick={() => handlePayFee(appt, "insurance", p.id)}
+                                       >
+                                         Use {p.name}
+                                       </Button>
+                                     ))}
+                                   </div>
+                                 )}
+                               </>
                              ) : (
-                               <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none text-[9px] font-bold uppercase px-2 h-5 rounded-sm">Fee Paid</Badge>
+                               <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none text-[9px] font-bold uppercase px-2 h-5 rounded-sm">
+                                 {appt.reception_fee_paid ? "Fee Paid" : "Fee Waived"}
+                               </Badge>
                              )}
                           </div>
                           <Button
