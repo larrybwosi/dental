@@ -168,7 +168,7 @@ const Navigation = () => {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">
-                Skryme Dental
+                Skryme Health
               </h1>
             </div>
           </div>

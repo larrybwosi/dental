@@ -391,7 +391,7 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicName">Clinic Name</Label>
-                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="Main Dental Clinic" />
+                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="Main Medical Clinic" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicAddress">Address</Label>
@@ -405,7 +405,7 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicWebsite">Website</Label>
-                  <Input id="clinicWebsite" value={clinicWebsite} onChange={(e) => setClinicWebsite(e.target.value)} placeholder="www.dentalclinic.com" />
+                  <Input id="clinicWebsite" value={clinicWebsite} onChange={(e) => setClinicWebsite(e.target.value)} placeholder="www.healthclinic.com" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicTaxId">Tax ID / License Number</Label>
@@ -476,7 +476,7 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-6 p-6">
               <div className="grid w-full max-w-sm items-center gap-1.5">
-                <Label htmlFor="receptionFee">Standard Reception Fee (KSH)</Label>
+                <Label htmlFor="receptionFee">Standard Reception Fee </Label>
                 <Input
                   type="number"
                   id="receptionFee"
@@ -587,7 +587,7 @@ const Settings = () => {
                     id="noteType"
                     value={newNoteType}
                     onChange={(e) => setNewNoteType(e.target.value)}
-                    placeholder="e.g., Surgery Details"
+                    placeholder="e.g., Medical Notes"
                     className="h-9 text-sm rounded-sm"
                   />
                 </div>
@@ -634,12 +634,12 @@ const Settings = () => {
                     id="serviceName"
                     value={newServiceName}
                     onChange={(e) => setNewServiceName(e.target.value)}
-                    placeholder="e.g., Routine Cleaning"
+                    placeholder="e.g., Consultation"
                     className="h-9 text-sm rounded-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="serviceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee (KSH)</Label>
+                  <Label htmlFor="serviceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee </Label>
                   <Input
                     id="serviceFee"
                     type="number"
@@ -663,7 +663,7 @@ const Settings = () => {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{service.name}</p>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">KSH {service.standard_fee.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{service.standard_fee.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -932,7 +932,7 @@ const Settings = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="editServiceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee (KSH)</Label>
+                <Label htmlFor="editServiceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee </Label>
                 <Input
                   id="editServiceFee"
                   type="number"

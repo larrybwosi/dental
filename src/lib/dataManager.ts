@@ -457,12 +457,11 @@ class DataManager {
     if (!types) {
       const defaultTypes = [
         "Chief complaints",
-        "History of complain",
+        "History of illness",
         "Medical history",
-        "Dental history",
         "Social history",
-        "Extra-oral examination",
-        "Intra-oral examination",
+        "Physical examination",
+        "Systemic examination",
         "Diagnosis",
         "Treatment plan",
         "General"

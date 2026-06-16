@@ -335,7 +335,7 @@ const Reception = () => {
           <div className="p-1.5 bg-white/10 rounded-sm">
             <Activity className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight">Skryme Dental <span className="font-normal opacity-80">| Reception Hub</span></h1>
+          <h1 className="text-lg font-bold tracking-tight">Skryme Health <span className="font-normal opacity-80">| Reception Hub</span></h1>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -510,7 +510,7 @@ const Reception = () => {
                                     className="h-7 text-[10px] font-bold uppercase border-green-200 text-green-700 hover:bg-green-50 rounded-sm"
                                     onClick={() => handlePayFee(appt)}
                                    >
-                                     <CreditCard className="h-3 w-3 mr-1" /> Pay KSH {receptionFee}
+                                     <CreditCard className="h-3 w-3 mr-1" /> Pay {receptionFee}
                                    </Button>
                                  </div>
                                  {insuranceProviders.filter(p => p.pays_reception_fee).length > 0 && (
@@ -813,7 +813,7 @@ const Reception = () => {
                     <div key={t.id} className="flex items-center justify-between p-2 bg-blue-50 rounded-sm border border-blue-100">
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                           <p className="text-sm font-bold text-blue-900">{t.diagnosis || "Dental Treatment"}</p>
+                           <p className="text-sm font-bold text-blue-900">{t.diagnosis || "Medical Treatment"}</p>
                            <span className="text-[9px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-sm">{t.date}</span>
                         </div>
                         <p className="text-[10px] text-blue-700">{t.medications.length} Medications: {t.medications.map(m => m.name).join(", ")}</p>
@@ -852,7 +852,7 @@ const Reception = () => {
                         <div className="flex-1">
                           <p className="text-xs font-bold text-amber-900">Unpaid Services ({group[0].date})</p>
                           <p className="text-[10px] text-amber-700 font-medium line-clamp-1">{group.map(p => p.notes).join(", ")}</p>
-                          <p className="text-[10px] font-bold text-amber-800 mt-0.5">Total: KSH {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</p>
+                          <p className="text-[10px] font-bold text-amber-800 mt-0.5">Total: {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</p>
                         </div>
                         <Button size="sm" variant="ghost" className="text-amber-600" onClick={() => pdfGenerator.generateInvoice(group)}>
                           <Download className="h-4 w-4" />
@@ -899,7 +899,7 @@ const Reception = () => {
                             {group.map(p => p.notes).join(", ")}
                           </p>
                           <p className="text-[10px] font-bold text-green-800 mt-1">
-                            Total: KSH {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                            Total: {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
                           </p>
                         </div>
                         <Button
