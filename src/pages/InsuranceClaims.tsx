@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
-  Filter,
   CreditCard,
   Plus,
   Trash2,
@@ -67,8 +66,8 @@ const InsuranceClaims = () => {
       ]);
       setPayments(allPayments.filter((p) => p.method === "insurance"));
       setInsuranceProviders(providers);
-    } catch (error) {
-      console.error("Failed to load data", error);
+    } catch (_error) {
+      console.error("Failed to load data", _error);
       toast.error("Failed to load insurance claims");
     } finally {
       setIsLoading(false);
@@ -132,7 +131,7 @@ const InsuranceClaims = () => {
       toast.success("Claim updated successfully");
       setIsEditDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to update claim");
     }
   };
@@ -175,7 +174,7 @@ const InsuranceClaims = () => {
       toast.success("Payment split successfully. Balance moved to cash/pending.");
       setIsEditDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch {
       toast.error("Failed to split payment");
     }
   };
@@ -308,7 +307,7 @@ const InsuranceClaims = () => {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+                <Select value={status} onValueChange={(v: "pending" | "paid") => setStatus(v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
