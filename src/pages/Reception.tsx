@@ -13,8 +13,10 @@ import {
   CreditCard,
   LogOut,
   Activity,
-  UserCheck,
   Calendar,
+  XCircle,
+  FileText,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +25,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { CheckoutDialog } from "@/components/CheckoutDialog";
 import {
   Sheet,
   SheetContent,
@@ -31,22 +34,30 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
-import { dataManager, Patient, Appointment, InsuranceProvider } from "@/lib/dataManager";
+import { dataManager, Patient, Appointment, InsuranceProvider, Treatment, Payment } from "@/lib/dataManager";
 import { toast } from "sonner";
 import PatientForm from "@/components/PatientForm";
 import AppointmentForm from "@/components/AppointmentForm";
+import { pdfGenerator } from "@/lib/pdfGenerator";
 import { listen } from "@tauri-apps/api/event";
-import { cn } from "@/lib/utils";
+import { cn, getLocalDate } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const Reception = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [showDocuments, setShowDocuments] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [receptionFee, setReceptionFee] = useState<number>(0);
   const [requirePayment, setRequirePayment] = useState<boolean>(true);
@@ -54,16 +65,19 @@ const Reception = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [pts, apts, , fee, reqPay, providers] = await Promise.all([
+      const [pts, apts, pmts, fee, reqPay, providers, trts] = await Promise.all([
         dataManager.getPatients(),
         dataManager.getAppointments(),
         dataManager.getPayments(),
         dataManager.getSetting("reception_fee"),
         dataManager.getSetting("require_payment_before_admit"),
-        dataManager.getInsuranceProviders()
+        dataManager.getInsuranceProviders(),
+        dataManager.getTreatments()
       ]);
       setPatients(pts);
       setAppointments(apts);
+      setPayments(pmts);
+      setTreatments(trts);
       setReceptionFee(Number(fee || 0));
       setRequirePayment(reqPay === "true");
       setInsuranceProviders(providers);
@@ -85,9 +99,15 @@ const Reception = () => {
       return unlisten;
     };
 
+    // Background polling fallback for network reliability
+    const intervalId = setInterval(() => {
+      loadData();
+    }, 30000); // 30 seconds
+
     const unlistenPromise = setupListener();
     return () => {
       unlistenPromise.then(f => f());
+      clearInterval(intervalId);
     };
   }, [loadData]);
 
@@ -114,18 +134,21 @@ const Reception = () => {
 
     if (todayApt) {
       toast.info(`Found scheduled appointment for ${patient.name} today.`);
-    } else {
-      setShowAddAppointment(true);
     }
   };
 
   const handleAddPatient = async (patientData: Omit<Patient, "id" | "created_at" | "updated_at">) => {
     try {
       const newPatient = await dataManager.addPatient(patientData);
-      await loadData();
       setShowAddPatient(false);
-      handlePatientSelect(newPatient);
-      toast.success("Patient registered successfully");
+      // Automatically admit the new patient
+      const admitted = await handleQuickAdmit(newPatient, true);
+      if (admitted) {
+        toast.success("Patient registered and admitted successfully");
+      } else {
+        toast.warning("Patient registered but auto-admission failed");
+        await loadData();
+      }
     } catch {
       toast.error("Failed to register patient");
     }
@@ -136,13 +159,76 @@ const Reception = () => {
       await dataManager.addAppointment(apptData);
       await loadData();
       setShowAddAppointment(false);
+      setSelectedPatient(null);
       toast.success("Appointment created");
     } catch {
       toast.error("Failed to create appointment");
     }
   };
 
+  const handleQuickAdmit = async (patient: Patient, silent = false) => {
+    // Check if patient is already in the active queue TODAY
+    const today = new Date().toISOString().split("T")[0];
+    const activeAppointment = appointments.find(a =>
+      a.patient_id === patient.id &&
+      a.date === today &&
+      (a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout')
+    );
+
+    if (activeAppointment) {
+      if (!silent) {
+        const statusMap = {
+          'admitted': 'already in the waiting room',
+          'in_consultation': 'already in consultation',
+          'awaiting_checkout': 'awaiting checkout'
+        };
+        const statusText = statusMap[activeAppointment.status as keyof typeof statusMap] || 'already in the queue';
+        toast.error(`${patient.name} is ${statusText}.`);
+      }
+      return false;
+    }
+
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+      await dataManager.addAppointment({
+        patient_id: patient.id,
+        patient_name: patient.name,
+        date: today,
+        time: now,
+        status: "admitted",
+        appointment_type: "General Consultation",
+        notes: "Quick admission",
+        duration: 30,
+        reception_fee_paid: false,
+        reception_fee_waived: false,
+      });
+
+      await loadData();
+      setSelectedPatient(null);
+      setSearchTerm("");
+      setSearchResults([]);
+      if (!silent) toast.success(`${patient.name} admitted to waiting room`);
+      return true;
+    } catch {
+      if (!silent) toast.error("Failed to admit patient");
+      return false;
+    }
+  };
+
   const handleAdmit = async (appt: Appointment) => {
+    // Check if patient is already in the active queue
+    const activeAppointment = appointments.find(a =>
+      a.patient_id === appt.patient_id &&
+      (a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout')
+    );
+
+    if (activeAppointment) {
+      toast.error(`${appt.patient_name} is already in the queue or in consultation.`);
+      return;
+    }
+
     if (requirePayment && !appt.reception_fee_paid && !appt.reception_fee_waived) {
       toast.error("Reception fee must be paid before admission");
       return;
@@ -163,7 +249,7 @@ const Reception = () => {
         patient_id: appt.patient_id,
         patient_name: appt.patient_name,
         amount: receptionFee,
-        date: new Date().toISOString(),
+        date: new Date().toISOString().split("T")[0],
         method: method,
         insurance_provider_id: providerId,
         status: "paid",
@@ -176,10 +262,45 @@ const Reception = () => {
     }
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const handleOpenCheckout = (appt: Appointment) => {
+    setSelectedAppointment(appt);
+    setShowCheckout(true);
+  };
+
+  const handleOpenDocuments = (appt: Appointment) => {
+    setSelectedAppointment(appt);
+    setShowDocuments(true);
+  };
+
+  const handleMoveToCheckout = async (appt: Appointment) => {
+    if (!confirm(`Move ${appt.patient_name} to checkout? This will end their consultation session.`)) return;
+    try {
+      await dataManager.updateAppointment(appt.id, { status: "awaiting_checkout" });
+      await dataManager.updateDoctorStatus(appt.doctor_id || "", null);
+      toast.success("Patient moved to checkout");
+      loadData();
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleCancelVisit = async (appt: Appointment) => {
+    if (!confirm(`Are you sure you want to cancel ${appt.patient_name}'s visit? This will remove them from the queue.`)) return;
+    try {
+      await dataManager.updateAppointment(appt.id, { status: "cancelled" });
+      await dataManager.updateDoctorStatus(appt.doctor_id || "", null);
+      toast.success("Visit cancelled");
+      loadData();
+    } catch {
+      toast.error("Failed to cancel visit");
+    }
+  };
+
+  const today = getLocalDate();
   const todayAppointments = appointments.filter(a => a.date === today);
   const scheduledToday = todayAppointments.filter(a => a.status === 'scheduled');
-  const inQueue = todayAppointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation');
+  const inQueue = todayAppointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout');
+  const recentlyCompleted = todayAppointments.filter(a => a.status === 'completed' || a.status === 'cancelled');
 
   const stats = [
     { label: "Today's Arrivals", value: todayAppointments.length, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
@@ -198,16 +319,37 @@ const Reception = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed bottom-6 right-6 h-12 w-12 rounded-full shadow-lg bg-white border-blue-100 text-[#0078d4] hover:bg-blue-50 z-50"
+        onClick={() => {
+          setIsLoading(true);
+          loadData();
+          toast.success("Data refreshed");
+        }}
+      >
+        <Activity className="h-6 w-6" />
+      </Button>
       {/* Premium Header */}
       <header className="bg-[#0078d4] text-white px-6 h-14 flex items-center justify-between shadow-md shrink-0">
         <div className="flex items-center space-x-3">
           <div className="p-1.5 bg-white/10 rounded-sm">
             <Activity className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight">Skryme Dental <span className="font-normal opacity-80">| Reception Hub</span></h1>
+          <h1 className="text-lg font-bold tracking-tight">Skryme Health <span className="font-normal opacity-80">| Reception Hub</span></h1>
         </div>
 
         <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-white/10 h-8 px-2 rounded-sm border border-white/20 mr-2"
+            onClick={() => navigate("/insurance-claims")}
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            <span className="text-xs font-semibold uppercase">Insurance Claims</span>
+          </Button>
           <div className="flex items-center space-x-3 pr-4 border-r border-white/20">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-semibold leading-none">{user?.full_name}</p>
@@ -274,17 +416,26 @@ const Reception = () => {
                     {searchResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-sm z-50 overflow-hidden divide-y divide-gray-50">
                         {searchResults.map((p) => (
-                          <button
+                          <div
                             key={p.id}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
-                            onClick={() => handlePatientSelect(p)}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                           >
-                            <div>
+                            <button
+                              className="flex-1 text-left"
+                              onClick={() => handlePatientSelect(p)}
+                            >
                               <p className="text-sm font-bold text-gray-900">{p.name}</p>
                               <p className="text-[10px] text-gray-500">{p.phone} • {p.email || 'No email'}</p>
-                            </div>
-                            <UserCheck className="h-4 w-4 text-[#0078d4] opacity-0 group-hover:opacity-100" />
-                          </button>
+                            </button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-[10px] font-bold border-[#0078d4] text-[#0078d4] hover:bg-blue-50 ml-2"
+                              onClick={() => handleQuickAdmit(p)}
+                            >
+                              Admit Now
+                            </Button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -318,7 +469,15 @@ const Reception = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <Button variant="outline" size="sm" className="h-8 text-xs border-gray-200" onClick={() => setSelectedPatient(null)}>Cancel</Button>
-                      <Button size="sm" className="h-8 text-xs bg-[#0078d4] text-white" onClick={() => setShowAddAppointment(true)}>Create Appointment</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs border-[#0078d4] text-[#0078d4] hover:bg-blue-50"
+                        onClick={() => handleQuickAdmit(selectedPatient)}
+                      >
+                        Quick Admit
+                      </Button>
+                      <Button size="sm" className="h-8 text-xs bg-[#0078d4] text-white" onClick={() => setShowAddAppointment(true)}>Schedule Visit</Button>
                     </div>
                   </div>
                 )}
@@ -362,7 +521,7 @@ const Reception = () => {
                                     className="h-7 text-[10px] font-bold uppercase border-green-200 text-green-700 hover:bg-green-50 rounded-sm"
                                     onClick={() => handlePayFee(appt)}
                                    >
-                                     <CreditCard className="h-3 w-3 mr-1" /> Pay KSH {receptionFee}
+                                     <CreditCard className="h-3 w-3 mr-1" /> Pay {receptionFee}
                                    </Button>
                                  </div>
                                  {insuranceProviders.filter(p => p.pays_reception_fee).length > 0 && (
@@ -429,11 +588,117 @@ const Reception = () => {
                       {inQueue.filter(a => a.status === 'in_consultation').map(appt => (
                         <div key={appt.id} className="p-3 bg-green-50/50 border border-green-100 rounded-sm">
                           <div className="flex justify-between items-start">
-                            <div>
+                            <div className="flex-1">
                               <p className="text-sm font-bold text-gray-900">{appt.patient_name}</p>
                               <p className="text-[10px] text-green-700 font-semibold uppercase">{appt.doctor_name || 'Assigned Doctor'}</p>
                             </div>
-                            <Activity className="h-4 w-4 text-green-500" />
+                            <div className="flex flex-col gap-1">
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[9px] font-bold bg-[#0078d4] text-white rounded-sm flex-1"
+                                  onClick={() => handleMoveToCheckout(appt)}
+                                >
+                                  Checkout
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[9px] font-bold border-gray-200"
+                                  onClick={() => handleOpenDocuments(appt)}
+                                >
+                                  <FileText className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[9px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-sm"
+                                onClick={() => handleCancelVisit(appt)}
+                              >
+                                Cancel Visit
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Awaiting Checkout Section */}
+                  <div>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center">
+                      <CreditCard className="h-3 w-3 mr-2 text-blue-500" />
+                      Awaiting Checkout ({inQueue.filter(a => a.status === 'awaiting_checkout').length})
+                    </h4>
+                    <div className="space-y-2">
+                      {inQueue.filter(a => a.status === 'awaiting_checkout').map(appt => (
+                        <div key={appt.id} className="p-3 bg-blue-50 border border-blue-100 rounded-sm">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-gray-900">{appt.patient_name}</p>
+                              <p className="text-[10px] text-blue-700 font-semibold uppercase">Ready for billing</p>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Button
+                                size="sm"
+                                className="h-7 text-[10px] font-bold bg-[#0078d4] text-white rounded-sm px-4"
+                                onClick={() => handleOpenCheckout(appt)}
+                              >
+                                Checkout
+                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[9px] font-bold border-gray-200 flex-1"
+                                  onClick={() => handleOpenDocuments(appt)}
+                                >
+                                  <FileText className="h-3 w-3 mr-1" /> Documents
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[9px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-sm"
+                                  onClick={() => handleCancelVisit(appt)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Recently Completed Section */}
+                  <div className="pt-2 border-t border-gray-50 mt-2">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center">
+                      <Activity className="h-3 w-3 mr-2 text-gray-400" />
+                      Recently Completed ({recentlyCompleted.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {recentlyCompleted.slice(0, 5).map(appt => (
+                        <div key={appt.id} className="p-3 bg-gray-50/50 border border-gray-100 rounded-sm">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-gray-900">{appt.patient_name}</p>
+                              <Badge className={cn(
+                                "text-[8px] h-4 px-1 rounded-sm border-none uppercase font-black",
+                                appt.status === 'completed' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                              )}>
+                                {appt.status}
+                              </Badge>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] font-bold border-gray-200"
+                              onClick={() => handleOpenDocuments(appt)}
+                            >
+                              <FileText className="h-3 w-3 mr-1" /> Docs
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -450,11 +715,21 @@ const Reception = () => {
                       {inQueue.filter(a => a.status === 'admitted').map(appt => (
                         <div key={appt.id} className="p-3 bg-white border border-gray-100 rounded-sm shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
                           <div className="flex justify-between items-center">
-                            <div>
+                            <div className="flex-1">
                               <p className="text-sm font-bold text-gray-900">{appt.patient_name}</p>
                               <p className="text-[10px] text-gray-500 font-medium">Checked in at {new Date(appt.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
-                            <Badge variant="outline" className="text-[9px] font-bold border-orange-100 bg-orange-50 text-orange-600 px-1.5 h-5 rounded-sm">WAITING</Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[9px] font-bold border-orange-100 bg-orange-50 text-orange-600 px-1.5 h-5 rounded-sm">WAITING</Badge>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-sm"
+                                onClick={() => handleCancelVisit(appt)}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -498,6 +773,186 @@ const Reception = () => {
               patient={selectedPatient}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <CheckoutDialog
+        open={showCheckout}
+        onOpenChange={setShowCheckout}
+        appointment={selectedAppointment}
+        onComplete={loadData}
+      />
+
+      <Dialog open={showDocuments} onOpenChange={setShowDocuments}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Patient Documents</DialogTitle>
+            <DialogDescription>
+              Download cards for appointments and prescriptions created today for {selectedAppointment?.patient_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Today's Appointments</h4>
+              <div className="space-y-2">
+                {appointments
+                  .filter(a => a.patient_id === selectedAppointment?.patient_id && a.date >= today && a.status === 'scheduled')
+                  .map(a => (
+                    <div key={a.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-sm border border-gray-100">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{a.appointment_type}</p>
+                        <p className="text-[10px] text-gray-500">{a.date} at {a.time}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => pdfGenerator.generateAppointmentCard(a)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                {appointments.filter(a => a.patient_id === selectedAppointment?.patient_id && a.date >= today && a.status === 'scheduled').length === 0 && (
+                  <p className="text-xs text-gray-400 italic">No future appointments scheduled.</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Prescription Cards</h4>
+              <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                {treatments
+                  .filter(t => t.patient_id === selectedAppointment?.patient_id && t.medications && t.medications.length > 0)
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-2 bg-blue-50 rounded-sm border border-blue-100">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                           <p className="text-sm font-bold text-blue-900">{t.diagnosis || "Medical Treatment"}</p>
+                           <span className="text-[9px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-sm">{t.date}</span>
+                        </div>
+                        <p className="text-[10px] text-blue-700">{t.medications.length} Medications: {t.medications.map(m => m.name).join(", ")}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => pdfGenerator.generatePrescription(t, t.medications)}>
+                        <Download className="h-4 w-4 text-blue-600" />
+                      </Button>
+                    </div>
+                  ))}
+                {treatments.filter(t => t.patient_id === selectedAppointment?.patient_id && t.medications && t.medications.length > 0).length === 0 && (
+                  <div className="py-6 text-center bg-gray-50 border border-dashed border-gray-200 rounded-sm">
+                    <p className="text-xs text-gray-400 italic">No prescriptions found.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pending Invoices</h4>
+              <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 mb-4">
+                {(() => {
+                  const pending = payments.filter(
+                    p => p.patient_id === selectedAppointment?.patient_id && p.status === 'pending'
+                  );
+
+                  if (pending.length > 0) {
+                    const grouped = pending.reduce((acc, p) => {
+                      const key = p.treatment_id || `pending-${p.date}`;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(p);
+                      return acc;
+                    }, {} as Record<string, Payment[]>);
+
+                    return Object.values(grouped).map((group, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 bg-amber-50 rounded-sm border border-amber-100">
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-amber-900">Unpaid Services ({group[0].date})</p>
+                          <p className="text-[10px] text-amber-700 font-medium line-clamp-1">{group.map(p => p.notes).join(", ")}</p>
+                          <p className="text-[10px] font-bold text-amber-800 mt-0.5">Total: {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</p>
+                        </div>
+                        <Button size="sm" variant="ghost" className="text-amber-600" onClick={() => pdfGenerator.generateInvoice(group)}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ));
+                  }
+                  return <p className="text-xs text-gray-400 italic py-2">No pending charges.</p>;
+                })()}
+              </div>
+
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Payment Receipts</h4>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {(() => {
+                  const patientPayments = payments.filter(
+                    p => p.patient_id === selectedAppointment?.patient_id && p.status === 'paid'
+                  );
+
+                  if (patientPayments.length > 0) {
+                    // Group by date AND treatment_id (or lack thereof for reception fees)
+                    const groupedPayments = patientPayments.reduce((acc, p) => {
+                      const key = p.treatment_id || `reception-${p.date}`;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(p);
+                      return acc;
+                    }, {} as Record<string, Payment[]>);
+
+                    const sortedGroups = Object.values(groupedPayments).sort((a, b) =>
+                      b[0].date.localeCompare(a[0].date)
+                    );
+
+                    return sortedGroups.map((group, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 bg-green-50 rounded-sm border border-green-100 hover:bg-green-100/50 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-bold text-green-900">
+                              {group[0].treatment_id ? "Treatment Receipt" : "Reception Fee Receipt"}
+                            </p>
+                            <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-sm">
+                              {group[0].date}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-green-700 font-medium line-clamp-1">
+                            {group.map(p => p.notes).join(", ")}
+                          </p>
+                          <p className="text-[10px] font-bold text-green-800 mt-1">
+                            Total: {group.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 w-9 text-green-600 hover:text-green-700 hover:bg-green-200/50 ml-2"
+                          onClick={() => pdfGenerator.generateReceipt(group)}
+                        >
+                          <Download className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    ));
+                  }
+                  return (
+                    <div className="py-8 text-center bg-gray-50 border border-dashed border-gray-200 rounded-sm">
+                       <CreditCard className="h-8 w-8 text-gray-300 mx-auto mb-2 opacity-50" />
+                       <p className="text-xs text-gray-400 italic">No payment receipts found.</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Clinical Records</h4>
+              <div className="space-y-2">
+                {treatments
+                  .filter(t => t.patient_id === selectedAppointment?.patient_id && t.date === today)
+                  .map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-2 bg-indigo-50 rounded-sm border border-indigo-100">
+                      <div>
+                        <p className="text-sm font-bold text-indigo-900">Treatment Record</p>
+                        <p className="text-[10px] text-indigo-700">{t.treatment}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => pdfGenerator.generateTreatmentRecord(t)}>
+                        <Download className="h-4 w-4 text-indigo-600" />
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -84,6 +84,24 @@ const AppointmentForm = ({
   });
 
   useEffect(() => {
+    if (patient || appointment) {
+      setFormData(prev => ({
+        ...prev,
+        patient_id: appointment?.patient_id || patient?.id || prev.patient_id,
+        patient_name: appointment?.patient_name || patient?.name || prev.patient_name,
+        doctor_id: appointment?.doctor_id || prev.doctor_id,
+        doctor_name: appointment?.doctor_name || prev.doctor_name,
+        date: appointment?.date || prev.date,
+        time: appointment?.time || prev.time,
+        status: appointment?.status || prev.status,
+        appointment_type: appointment?.appointment_type || prev.appointment_type,
+        notes: appointment?.notes || prev.notes,
+        duration: appointment?.duration || prev.duration,
+      }));
+    }
+  }, [patient, appointment]);
+
+  useEffect(() => {
     const loadData = async () => {
         const [pts, users, svcs] = await Promise.all([
           dataManager.getPatients(),
@@ -209,6 +227,9 @@ const AppointmentForm = ({
                 disabled={(date) =>
                   date < startOfToday()
                 }
+                captionLayout="dropdown"
+                startMonth={new Date()}
+                endMonth={new Date(new Date().getFullYear() + 10, 11)}
                 initialFocus
               />
             </PopoverContent>
@@ -237,13 +258,13 @@ const AppointmentForm = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="appointment_type" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Procedure *</Label>
+          <Label htmlFor="appointment_type" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Visit Type *</Label>
           <Select
             value={formData.appointment_type}
             onValueChange={(value) => handleChange("appointment_type", value)}
           >
             <SelectTrigger className="h-9 text-sm rounded-sm border-gray-200">
-              <SelectValue placeholder="Select procedure" />
+              <SelectValue placeholder="Select visit type" />
             </SelectTrigger>
             <SelectContent>
               {services.map((service) => (

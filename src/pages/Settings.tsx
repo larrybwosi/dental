@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { dataManager, Service, InsuranceProvider } from "@/lib/dataManager";
-import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check, Plus, Trash2, Stethoscope, Upload, Image as ImageIcon, ShieldCheck, FileText } from "lucide-react";
+import { dataManager, type Service, type InsuranceProvider } from "@/lib/dataManager";
+import { Save, Settings as SettingsIcon, Server, Laptop, RefreshCw, Copy, Check, Plus, Trash2, Stethoscope, Upload, Image as ImageIcon, ShieldCheck, FileText, Edit } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkForUpdates } from "@/lib/updater";
 import { invoke } from "@tauri-apps/api/core";
@@ -22,6 +22,7 @@ const Settings = () => {
   const [receptionFee, setReceptionFee] = useState<string>("0");
   const [requirePaymentBeforeAdmit, setRequirePaymentBeforeAdmit] = useState<boolean>(true);
   const [autoUpdate, setAutoUpdate] = useState<boolean>(false);
+  const [thermalReceipts, setThermalReceipts] = useState<boolean>(false);
 
   // Branding settings
   const [clinicName, setClinicName] = useState("");
@@ -35,13 +36,20 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
-  const [newServiceName, setNewServiceName] = useState("");
-  const [newServiceFee, setNewServiceFee] = useState("");
-
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
   const [newProviderName, setNewProviderName] = useState("");
   const [providerPaysReception, setProviderPaysReception] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<InsuranceProvider | null>(null);
+
+  const [services, setServices] = useState<Service[]>([]);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceFee, setNewServiceFee] = useState("");
+  const [editingService, setEditingService] = useState<Service | null>(null);
+
+  const [isSpokeDialogOpen, setIsSpokeDialogOpen] = useState(false);
+  const [spokePairingCode, setSpokePairingCode] = useState("");
+  const [spokeHubAddress, setSpokeHubAddress] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [noteTypes, setNoteTypes] = useState<string[]>([]);
   const [newNoteType, setNewNoteType] = useState("");
@@ -50,7 +58,7 @@ const Settings = () => {
   useEffect(() => {
     loadSettings();
     loadNetworkInfo();
-    if (userRole === 'ADMIN') {
+    if (userRole === 'ADMIN' || userRole === 'DOCTOR') {
       loadServices();
       loadInsuranceProviders();
       loadNoteTypes();
@@ -110,7 +118,8 @@ const Settings = () => {
         website,
         taxId,
         footer,
-        logoData
+        logoData,
+        thermalRec
       ] = await Promise.all([
         dataManager.getSetting("reception_fee"),
         dataManager.getSetting("require_payment_before_admit"),
@@ -121,11 +130,13 @@ const Settings = () => {
         dataManager.getSetting("clinic_website"),
         dataManager.getSetting("clinic_tax_id"),
         dataManager.getSetting("clinic_footer"),
-        dataManager.getLogo()
+        dataManager.getLogo(),
+        dataManager.getSetting("thermal_receipts")
       ]);
       setReceptionFee(fee || "0");
       setRequirePaymentBeforeAdmit(requirePay === "true");
       setAutoUpdate(autoUpd === "true");
+      setThermalReceipts(thermalRec === "true");
       setClinicName(name || "");
       setClinicAddress(address || "");
       setClinicPhone(phone || "");
@@ -153,10 +164,40 @@ const Settings = () => {
   const handleStartHub = async () => {
     try {
       await invoke<string>("start_as_hub");
-      toast.success("Hub server started successfully!");
-      loadNetworkInfo();
+      toast.success("Hub server enabled! Restarting application for changes to take effect...");
+      setTimeout(() => invoke("restart_app"), 2000);
     } catch (error) {
       toast.error(error as string);
+    }
+  };
+
+  const handleStartSpoke = async () => {
+    if (!spokePairingCode) {
+      toast.error("Pairing code is required");
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      // 1. Verify Hub availability
+      await invoke("verify_hub_connection", {
+        code: spokePairingCode,
+        manualAddr: spokeHubAddress || null
+      });
+
+      // 2. If verified, switch mode
+      await invoke("start_as_spoke", {
+        code: spokePairingCode,
+        manualAddr: spokeHubAddress || null
+      });
+
+      toast.success("Successfully connected to Hub! Restarting application...");
+      setIsSpokeDialogOpen(false);
+      setTimeout(() => invoke("restart_app"), 2000);
+    } catch (error) {
+      toast.error(error as string);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -191,12 +232,13 @@ const Settings = () => {
         promises.push(dataManager.setSetting("clinic_website", clinicWebsite));
         promises.push(dataManager.setSetting("clinic_tax_id", clinicTaxId));
         promises.push(dataManager.setSetting("clinic_footer", clinicFooter));
+        promises.push(dataManager.setSetting("thermal_receipts", thermalReceipts.toString()));
         if (logo && logo.startsWith('data:image')) {
           promises.push(dataManager.saveLogo(logo));
         }
       }
 
-      if (user?.role === 'ADMIN') {
+      if (user?.role === 'ADMIN' || user?.role === 'DOCTOR') {
         promises.push(dataManager.setSetting("reception_fee", receptionFee));
         promises.push(dataManager.setSetting("require_payment_before_admit", requirePaymentBeforeAdmit.toString()));
       }
@@ -228,12 +270,28 @@ const Settings = () => {
   };
 
   const handleDeleteService = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this service?")) return;
     try {
       await dataManager.deleteService(id);
       loadServices();
       toast.success("Service deleted");
     } catch {
       toast.error("Failed to delete service");
+    }
+  };
+
+  const handleUpdateService = async () => {
+    if (!editingService) return;
+    try {
+      await dataManager.updateService(editingService.id, {
+        name: editingService.name,
+        standard_fee: editingService.standard_fee
+      });
+      setEditingService(null);
+      loadServices();
+      toast.success("Service updated");
+    } catch {
+      toast.error("Failed to update service");
     }
   };
 
@@ -257,12 +315,28 @@ const Settings = () => {
   };
 
   const handleDeleteProvider = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this insurance provider?")) return;
     try {
       await dataManager.deleteInsuranceProvider(id);
       loadInsuranceProviders();
       toast.success("Insurance provider deleted");
     } catch {
       toast.error("Failed to delete insurance provider");
+    }
+  };
+
+  const handleUpdateProvider = async () => {
+    if (!editingProvider) return;
+    try {
+      await dataManager.updateInsuranceProvider(editingProvider.id, {
+        name: editingProvider.name,
+        pays_reception_fee: editingProvider.pays_reception_fee
+      });
+      setEditingProvider(null);
+      loadInsuranceProviders();
+      toast.success("Insurance provider updated");
+    } catch {
+      toast.error("Failed to update insurance provider");
     }
   };
 
@@ -317,7 +391,7 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicName">Clinic Name</Label>
-                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="Main Dental Clinic" />
+                  <Input id="clinicName" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="Main Medical Clinic" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicAddress">Address</Label>
@@ -331,7 +405,7 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicWebsite">Website</Label>
-                  <Input id="clinicWebsite" value={clinicWebsite} onChange={(e) => setClinicWebsite(e.target.value)} placeholder="www.dentalclinic.com" />
+                  <Input id="clinicWebsite" value={clinicWebsite} onChange={(e) => setClinicWebsite(e.target.value)} placeholder="www.healthclinic.com" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="clinicTaxId">Tax ID / License Number</Label>
@@ -373,11 +447,27 @@ const Settings = () => {
                 </div>
               </div>
             </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="thermalReceipts"
+                  checked={thermalReceipts}
+                  onChange={(e) => setThermalReceipts(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                <div className="grid gap-0.5">
+                  <Label htmlFor="thermalReceipts" className="text-sm font-medium">Use Thermal Printer Format (80mm)</Label>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-tight">Enables minified layout for receipts and pro-forma invoices</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {user?.role === 'ADMIN' && (
+      {(user?.role === 'ADMIN' || user?.role === 'DOCTOR') && (
         <>
           <Card className="border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden">
             <CardHeader className="bg-gray-50/50 border-b border-gray-200 py-3 px-4">
@@ -386,7 +476,7 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-6 p-6">
               <div className="grid w-full max-w-sm items-center gap-1.5">
-                <Label htmlFor="receptionFee">Standard Reception Fee (KSH)</Label>
+                <Label htmlFor="receptionFee">Standard Reception Fee </Label>
                 <Input
                   type="number"
                   id="receptionFee"
@@ -455,14 +545,24 @@ const Settings = () => {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDeleteProvider(provider.id)}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-primary hover:bg-blue-50"
+                        onClick={() => setEditingProvider(provider)}
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDeleteProvider(provider.id)}
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {insuranceProviders.length === 0 && (
@@ -487,7 +587,7 @@ const Settings = () => {
                     id="noteType"
                     value={newNoteType}
                     onChange={(e) => setNewNoteType(e.target.value)}
-                    placeholder="e.g., Surgery Details"
+                    placeholder="e.g., Medical Notes"
                     className="h-9 text-sm rounded-sm"
                   />
                 </div>
@@ -534,12 +634,12 @@ const Settings = () => {
                     id="serviceName"
                     value={newServiceName}
                     onChange={(e) => setNewServiceName(e.target.value)}
-                    placeholder="e.g., Routine Cleaning"
+                    placeholder="e.g., Consultation"
                     className="h-9 text-sm rounded-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="serviceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee (KSH)</Label>
+                  <Label htmlFor="serviceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee </Label>
                   <Input
                     id="serviceFee"
                     type="number"
@@ -563,17 +663,27 @@ const Settings = () => {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{service.name}</p>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">KSH {service.standard_fee.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{service.standard_fee.toLocaleString()}</p>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDeleteService(service.id)}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-primary hover:bg-blue-50"
+                        onClick={() => setEditingService(service)}
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDeleteService(service.id)}
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {services.length === 0 && (
@@ -638,8 +748,28 @@ const Settings = () => {
                   </div>
                 </div>
                 {networkInfo.mode === 'none' && (
-                  <Button onClick={handleStartHub} size="sm" className="bg-primary text-white text-[10px] h-8 px-4 font-bold uppercase tracking-wider rounded-sm">
-                    Enable Hub Mode
+                  <div className="flex gap-2">
+                    <Button onClick={() => setIsSpokeDialogOpen(true)} variant="outline" size="sm" className="text-[10px] h-8 px-4 font-bold uppercase tracking-wider rounded-sm">
+                      Enable Spoke Mode
+                    </Button>
+                    <Button onClick={handleStartHub} size="sm" className="bg-primary text-white text-[10px] h-8 px-4 font-bold uppercase tracking-wider rounded-sm">
+                      Enable Hub Mode
+                    </Button>
+                  </div>
+                )}
+                {networkInfo.mode !== 'none' && (
+                  <Button
+                    onClick={async () => {
+                      if (confirm("Switching to Standalone mode will disconnect this machine from the network. The app will restart. Proceed?")) {
+                        await dataManager.setSetting("network_mode", "none");
+                        invoke("restart_app");
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="text-[10px] h-8 px-4 font-bold uppercase tracking-wider rounded-sm text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Disable Network Mode
                   </Button>
                 )}
               </div>
@@ -700,6 +830,125 @@ const Settings = () => {
           Save Settings
         </Button>
       </div>
+
+      {/* Edit Provider Dialog */}
+      {editingProvider && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md bg-white">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider">Edit Insurance Provider</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="editProviderName" className="text-[10px] font-bold uppercase text-gray-500">Provider Name</Label>
+                <Input
+                  id="editProviderName"
+                  value={editingProvider.name}
+                  onChange={(e) => setEditingProvider({ ...editingProvider, name: e.target.value })}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="editPaysReception"
+                  checked={editingProvider.pays_reception_fee}
+                  onChange={(e) => setEditingProvider({ ...editingProvider, pays_reception_fee: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                <Label htmlFor="editPaysReception" className="text-sm">Covers Reception Fee</Label>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingProvider(null)}>Cancel</Button>
+                <Button size="sm" onClick={handleUpdateProvider}>Save Changes</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Spoke Connection Dialog */}
+      {isSpokeDialogOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md bg-white">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider">Connect as Spoke</CardTitle>
+              <CardDescription className="text-[10px] font-medium uppercase">Enter the Hub details to connect</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="spokeCode" className="text-[10px] font-bold uppercase text-gray-500">Pairing Code</Label>
+                <Input
+                  id="spokeCode"
+                  value={spokePairingCode}
+                  onChange={(e) => setSpokePairingCode(e.target.value.toUpperCase())}
+                  placeholder="ABCDEF"
+                  className="h-10 text-center text-lg font-bold tracking-widest"
+                  maxLength={6}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="spokeAddr" className="text-[10px] font-bold uppercase text-gray-500">Hub Address (Optional)</Label>
+                <Input
+                  id="spokeAddr"
+                  value={spokeHubAddress}
+                  onChange={(e) => setSpokeHubAddress(e.target.value)}
+                  placeholder="192.168.1.100:8080"
+                  className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-gray-400 italic">Leave empty for automatic discovery</p>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setIsSpokeDialogOpen(false)} disabled={isVerifying}>Cancel</Button>
+                <Button size="sm" onClick={handleStartSpoke} disabled={isVerifying}>
+                  {isVerifying ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : "Connect"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Service Dialog */}
+      {editingService && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md bg-white">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider">Edit Service</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="editServiceName" className="text-[10px] font-bold uppercase text-gray-500">Service Name</Label>
+                <Input
+                  id="editServiceName"
+                  value={editingService.name}
+                  onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editServiceFee" className="text-[10px] font-bold uppercase text-gray-500">Standard Fee </Label>
+                <Input
+                  id="editServiceFee"
+                  type="number"
+                  value={editingService.standard_fee}
+                  onChange={(e) => setEditingService({ ...editingService, standard_fee: parseFloat(e.target.value) })}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingService(null)}>Cancel</Button>
+                <Button size="sm" onClick={handleUpdateService}>Save Changes</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

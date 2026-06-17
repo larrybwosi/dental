@@ -14,6 +14,24 @@ pub struct InsuranceProvider {
 }
 
 #[command]
+pub fn update_insurance_provider(
+    app_handle: AppHandle,
+    id: String,
+    name: String,
+    pays_reception_fee: bool,
+) -> Result<(), String> {
+    let conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    conn.execute(
+        "UPDATE insurance_providers SET name = ?1, pays_reception_fee = ?2, updated_at = ?3, sync_status = 'pending' WHERE id = ?4",
+        rusqlite::params![name, pays_reception_fee, now, id],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[command]
 pub fn list_insurance_providers(app_handle: AppHandle) -> Result<Vec<InsuranceProvider>, String> {
     let conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare("SELECT id, name, pays_reception_fee, created_at, updated_at FROM insurance_providers").map_err(|e| e.to_string())?;
@@ -64,7 +82,18 @@ pub fn create_insurance_provider(
 
 #[command]
 pub fn delete_insurance_provider(app_handle: AppHandle, id: String) -> Result<(), String> {
-    let conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM insurance_providers WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
+    let mut conn = get_db_conn(&app_handle).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute("DELETE FROM insurance_providers WHERE id = ?1", [&id]).map_err(|e| e.to_string())?;
+
+    let now = Utc::now().to_rfc3339();
+    let deletion_id = Uuid::new_v4().to_string();
+    tx.execute(
+        "INSERT INTO deleted_records (id, table_name, record_id, deleted_at, sync_status) VALUES (?1, 'insurance_providers', ?2, ?3, 'pending')",
+        [deletion_id, id, now],
+    ).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -165,7 +165,7 @@ const Reports = () => {
   const totalBilled = filteredTreats.reduce((sum, t) => sum + t.cost, 0);
 
   const formatCurrency = (amount: number) => {
-    return `KSH ${amount.toLocaleString()}`;
+    return `${amount.toLocaleString()}`;
   };
 
   return (
@@ -218,6 +218,9 @@ const Reports = () => {
                     mode="single"
                     selected={startDate && isValid(parseISO(startDate)) ? parseISO(startDate) : undefined}
                     onSelect={handleStartDateChange}
+                    captionLayout="dropdown"
+                    startMonth={new Date(2000, 0)}
+                    endMonth={new Date(new Date().getFullYear() + 1, 11)}
                     initialFocus
                   />
                 </PopoverContent>
@@ -247,6 +250,9 @@ const Reports = () => {
                     mode="single"
                     selected={endDate && isValid(parseISO(endDate)) ? parseISO(endDate) : undefined}
                     onSelect={handleEndDateChange}
+                    captionLayout="dropdown"
+                    startMonth={new Date(2000, 0)}
+                    endMonth={new Date(new Date().getFullYear() + 1, 11)}
                     initialFocus
                   />
                 </PopoverContent>

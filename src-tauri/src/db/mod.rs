@@ -52,6 +52,7 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
             role TEXT NOT NULL,
             full_name TEXT NOT NULL,
             created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
             sync_status TEXT DEFAULT 'synced'
         )",
         [],
@@ -69,6 +70,8 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
             allergies TEXT,
             emergency_contact TEXT,
             emergency_phone TEXT,
+            preferred_payment_method TEXT,
+            preferred_insurance_provider_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             sync_status TEXT DEFAULT 'synced'
@@ -200,6 +203,7 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
             method TEXT NOT NULL,
             status TEXT NOT NULL,
             notes TEXT,
+            metadata TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             sync_status TEXT DEFAULT 'synced',
@@ -220,7 +224,9 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
     conn.execute(
         "CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            sync_status TEXT DEFAULT 'synced'
         )",
         [],
     )?;
@@ -316,6 +322,17 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
         [],
     )?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS deleted_records (
+            id TEXT PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            deleted_at TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'pending'
+        )",
+        [],
+    )?;
+
     // Add columns to existing tables if they don't have them
     {
         let mut stmt = conn.prepare("PRAGMA table_info(appointments)")?;
@@ -339,6 +356,21 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
     }
 
     {
+        let mut stmt = conn.prepare("PRAGMA table_info(patients)")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(row.get::<_, String>(1)?)
+        })?;
+        let columns: Vec<String> = rows.filter_map(|r| r.ok()).collect();
+
+        if !columns.contains(&"preferred_payment_method".to_string()) {
+            let _ = conn.execute("ALTER TABLE patients ADD COLUMN preferred_payment_method TEXT", []);
+        }
+        if !columns.contains(&"preferred_insurance_provider_id".to_string()) {
+            let _ = conn.execute("ALTER TABLE patients ADD COLUMN preferred_insurance_provider_id TEXT", []);
+        }
+    }
+
+    {
         let mut stmt = conn.prepare("PRAGMA table_info(payments)")?;
         let rows = stmt.query_map([], |row| {
             Ok(row.get::<_, String>(1)?)
@@ -347,6 +379,9 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
 
         if !columns.contains(&"insurance_provider_id".to_string()) {
             let _ = conn.execute("ALTER TABLE payments ADD COLUMN insurance_provider_id TEXT", []);
+        }
+        if !columns.contains(&"metadata".to_string()) {
+            let _ = conn.execute("ALTER TABLE payments ADD COLUMN metadata TEXT", []);
         }
     }
 
@@ -448,7 +483,7 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
     }
 
     // Add sync_status to existing tables if they don't have it (for existing DBs)
-    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status", "patient_notes", "sick_sheets", "services", "insurance_providers"];
+    let tables = vec!["users", "patients", "appointments", "treatments", "payments", "waiver_requests", "doctor_status", "patient_notes", "sick_sheets", "services", "insurance_providers", "settings"];
     for table in tables {
         // First check if column exists to avoid errors
         let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
@@ -457,6 +492,25 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
 
         if !columns.contains(&"sync_status".to_string()) {
             let _ = conn.execute(&format!("ALTER TABLE {} ADD COLUMN sync_status TEXT DEFAULT 'synced'", table), []);
+        }
+
+        if !columns.contains(&"updated_at".to_string()) && table == "settings" {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = conn.execute(&format!("ALTER TABLE settings ADD COLUMN updated_at TEXT NOT NULL DEFAULT '{}'", now), []);
+        }
+    }
+
+    // Migration for users updated_at
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(users)")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(row.get::<_, String>(1)?)
+        })?;
+        let columns: Vec<String> = rows.filter_map(|r| r.ok()).collect();
+
+        if !columns.contains(&"updated_at".to_string()) {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = conn.execute(&format!("ALTER TABLE users ADD COLUMN updated_at TEXT NOT NULL DEFAULT '{}'", now), []);
         }
     }
 

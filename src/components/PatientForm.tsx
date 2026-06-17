@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { calculateAge, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Patient {
   id: string;
@@ -24,7 +25,18 @@ interface Patient {
   allergies: string;
   emergency_contact: string;
   emergency_phone: string;
+  preferred_payment_method?: "cash" | "insurance";
+  preferred_insurance_provider_id?: string;
 }
+
+import { dataManager, InsuranceProvider } from "@/lib/dataManager";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PatientFormProps {
   patient?: Patient;
@@ -33,6 +45,9 @@ interface PatientFormProps {
 }
 
 const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
+  const { user } = useAuth();
+  const isReceptionist = user?.role === "RECEPTION";
+
   const [formData, setFormData] = useState<Omit<Patient, "id">>({
     name: patient?.name || "",
     phone: patient?.phone || "",
@@ -43,7 +58,19 @@ const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
     allergies: patient?.allergies || "",
     emergency_contact: patient?.emergency_contact || "",
     emergency_phone: patient?.emergency_phone || "",
+    preferred_payment_method: patient?.preferred_payment_method || "cash",
+    preferred_insurance_provider_id: patient?.preferred_insurance_provider_id || "",
   });
+
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+
+  useEffect(() => {
+    const loadInsurance = async () => {
+      const providers = await dataManager.getInsuranceProviders();
+      setInsuranceProviders(providers);
+    };
+    loadInsurance();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +155,9 @@ const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
                 disabled={(date) =>
                   date > new Date() || date < new Date("1900-01-01")
                 }
+                captionLayout="dropdown"
+                startMonth={new Date(1900, 0)}
+                endMonth={new Date()}
                 initialFocus
               />
             </PopoverContent>
@@ -144,6 +174,45 @@ const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
           placeholder="Street address, city, state, zip"
           className="h-9 text-sm rounded-sm border-gray-200"
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Preferred Payment Method</Label>
+          <Select
+            value={formData.preferred_payment_method}
+            onValueChange={(value: "cash" | "insurance") => handleChange("preferred_payment_method", value)}
+          >
+            <SelectTrigger className="h-9 text-sm rounded-sm border-gray-200">
+              <SelectValue placeholder="Select payment method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="insurance">Insurance</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {formData.preferred_payment_method === "insurance" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Preferred Insurance Provider</Label>
+            <Select
+              value={formData.preferred_insurance_provider_id}
+              onValueChange={(value) => handleChange("preferred_insurance_provider_id", value)}
+            >
+              <SelectTrigger className="h-9 text-sm rounded-sm border-gray-200">
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {insuranceProviders.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,29 +240,33 @@ const PatientForm = ({ patient, onSave, onCancel }: PatientFormProps) => {
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="medical_history" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Medical History</Label>
-        <Textarea
-          id="medical_history"
-          value={formData.medical_history}
-          onChange={(e) => handleChange("medical_history", e.target.value)}
-          placeholder="Previous medical conditions, surgeries, medications..."
-          rows={2}
-          className="text-sm rounded-sm border-gray-200"
-        />
-      </div>
+      {!isReceptionist && (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="medical_history" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Medical History</Label>
+            <Textarea
+              id="medical_history"
+              value={formData.medical_history}
+              onChange={(e) => handleChange("medical_history", e.target.value)}
+              placeholder="Previous medical conditions, surgeries, medications..."
+              rows={2}
+              className="text-sm rounded-sm border-gray-200"
+            />
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="allergies" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Allergies & Medications</Label>
-        <Textarea
-          id="allergies"
-          value={formData.allergies}
-          onChange={(e) => handleChange("allergies", e.target.value)}
-          placeholder="Known allergies, current medications..."
-          rows={2}
-          className="text-sm rounded-sm border-gray-200"
-        />
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="allergies" className="text-xs font-semibold uppercase tracking-wider text-gray-500">Allergies & Medications</Label>
+            <Textarea
+              id="allergies"
+              value={formData.allergies}
+              onChange={(e) => handleChange("allergies", e.target.value)}
+              placeholder="Known allergies, current medications..."
+              rows={2}
+              className="text-sm rounded-sm border-gray-200"
+            />
+          </div>
+        </>
+      )}
 
       <div className="flex space-x-3 pt-2">
         <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-sm h-9 text-sm font-semibold">

@@ -11,6 +11,8 @@ export interface Patient {
   allergies: string;
   emergency_contact: string;
   emergency_phone: string;
+  preferred_payment_method?: "cash" | "insurance";
+  preferred_insurance_provider_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +33,7 @@ export interface Appointment {
   doctor_name?: string;
   date: string;
   time: string;
-  status: "scheduled" | "admitted" | "in_consultation" | "completed" | "cancelled";
+  status: "scheduled" | "admitted" | "in_consultation" | "awaiting_checkout" | "completed" | "cancelled";
   appointment_type: string;
   notes: string;
   duration: number;
@@ -133,6 +135,7 @@ export interface Payment {
   method: "cash" | "insurance";
   status: "pending" | "paid";
   notes: string;
+  metadata?: string;
   insurance_provider_id?: string;
   created_at: string;
   updated_at: string;
@@ -142,10 +145,10 @@ export interface BackupEntry {
     id: string;
     type: string;
     date: string;
-    patientCount: number;
-    appointmentCount: number;
-    treatmentCount: number;
-    paymentCount: number;
+    patient_count: number;
+    appointment_count: number;
+    treatment_count: number;
+    payment_count: number;
 }
 
 export interface DbStats {
@@ -195,7 +198,9 @@ class DataManager {
       medicalHistory: patient.medical_history,
       allergies: patient.allergies,
       emergencyContact: patient.emergency_contact,
-      emergencyPhone: patient.emergency_phone
+      emergencyPhone: patient.emergency_phone,
+      preferredPaymentMethod: patient.preferred_payment_method,
+      preferredInsuranceProviderId: patient.preferred_insurance_provider_id
     });
   }
 
@@ -215,7 +220,13 @@ class DataManager {
       allergies: updates.allergies ?? current.allergies,
       emergencyContact: updates.emergency_contact ?? current.emergency_contact,
       emergencyPhone: updates.emergency_phone ?? current.emergency_phone,
+      preferredPaymentMethod: updates.preferred_payment_method ?? current.preferred_payment_method,
+      preferredInsuranceProviderId: updates.preferred_insurance_provider_id ?? current.preferred_insurance_provider_id,
     });
+  }
+
+  public async deletePatient(id: string): Promise<void> {
+    await invoke("delete_patient", { id });
   }
 
   public async getPatientNotes(patient_id: string): Promise<PatientNote[]> {
@@ -230,6 +241,14 @@ class DataManager {
       noteType: note.note_type,
       note: note.note
     });
+  }
+
+  public async updatePatientNote(id: string, note_type: string, note: string): Promise<void> {
+    await invoke("update_patient_note", { id, noteType: note_type, note });
+  }
+
+  public async deletePatientNote(id: string): Promise<void> {
+    await invoke("delete_patient_note", { id });
   }
 
   public async getSickSheets(patient_id: string): Promise<SickSheet[]> {
@@ -362,7 +381,63 @@ class DataManager {
       date: payment.date,
       method: payment.method,
       status: payment.status,
-      notes: payment.notes
+      notes: payment.notes,
+      metadata: payment.metadata,
+      insuranceProviderId: payment.insurance_provider_id
+    });
+  }
+
+  public async updatePayment(id: string, updates: Partial<Payment>): Promise<void> {
+    const payments = await this.getPayments();
+    const current = payments.find(p => p.id === id);
+    if (!current) throw new Error("Payment not found");
+
+    await invoke("update_payment", {
+      id,
+      patientId: updates.patient_id ?? current.patient_id,
+      patientName: updates.patient_name ?? current.patient_name,
+      treatmentId: updates.treatment_id ?? current.treatment_id,
+      amount: updates.amount ?? current.amount,
+      date: updates.date ?? current.date,
+      method: updates.method ?? current.method,
+      status: updates.status ?? current.status,
+      notes: updates.notes ?? current.notes,
+      metadata: updates.metadata ?? current.metadata,
+      insuranceProviderId: updates.insurance_provider_id ?? current.insurance_provider_id,
+    });
+  }
+
+  public async deletePayment(id: string): Promise<void> {
+    await invoke("delete_payment", { id });
+  }
+
+  // Backup and Restore methods
+  public async getBackupHistory(): Promise<BackupEntry[]> {
+    return await invoke<BackupEntry[]>("get_backup_history");
+  }
+
+  public async restoreFromBackup(id: string): Promise<{ success: boolean; message: string }> {
+    return await invoke<{ success: boolean; message: string }>("restore_db", { backupId: id });
+  }
+
+  public async exportToCSV(dataType: string): Promise<string> {
+    return await invoke("export_to_csv", { dataType });
+  }
+
+  public async importFromFile(file: File): Promise<{ success: boolean; message: string }> {
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      reader.onload = async () => {
+        try {
+          const content = (reader.result as string).split(',')[1] || reader.result as string;
+          const result = await invoke<{ success: boolean; message: string }>("import_db", { content });
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsText(file);
     });
   }
 
@@ -385,12 +460,11 @@ class DataManager {
     if (!types) {
       const defaultTypes = [
         "Chief complaints",
-        "History of complain",
+        "History of illness",
         "Medical history",
-        "Dental history",
         "Social history",
-        "Extra-oral examination",
-        "Intra-oral examination",
+        "Physical examination",
+        "Systemic examination",
         "Diagnosis",
         "Treatment plan",
         "General"
@@ -431,6 +505,14 @@ class DataManager {
     });
   }
 
+  public async updateService(id: string, service: { name: string; standard_fee: number }): Promise<void> {
+    await invoke("update_service", {
+      id,
+      name: service.name,
+      standardFee: service.standard_fee
+    });
+  }
+
   public async deleteService(id: string): Promise<void> {
     await invoke("delete_service", { id });
   }
@@ -442,6 +524,14 @@ class DataManager {
 
   public async addInsuranceProvider(provider: { name: string; pays_reception_fee: boolean }): Promise<InsuranceProvider> {
     return await invoke<InsuranceProvider>("create_insurance_provider", {
+      name: provider.name,
+      paysReceptionFee: provider.pays_reception_fee
+    });
+  }
+
+  public async updateInsuranceProvider(id: string, provider: { name: string; pays_reception_fee: boolean }): Promise<void> {
+    await invoke("update_insurance_provider", {
+      id,
       name: provider.name,
       paysReceptionFee: provider.pays_reception_fee
     });
@@ -466,7 +556,13 @@ class DataManager {
   }
 
   public async createWaiverRequest(request: Omit<WaiverRequest, "id" | "status" | "created_at" | "updated_at">): Promise<WaiverRequest> {
-    return await invoke<WaiverRequest>("create_waiver_request", { ...request });
+    return await invoke<WaiverRequest>("create_waiver_request", {
+      appointmentId: request.appointment_id,
+      patientId: request.patient_id,
+      patientName: request.patient_name,
+      doctorId: request.doctor_id,
+      requestedBy: request.requested_by,
+    });
   }
 
   public async updateWaiverStatus(id: string, status: "approved" | "denied"): Promise<void> {
@@ -477,8 +573,8 @@ class DataManager {
     return await invoke<DoctorStatus[]>("list_doctor_statuses");
   }
 
-  public async updateDoctorStatus(doctor_id: string, current_appointment_id: string | null): Promise<void> {
-    await invoke("update_doctor_status", { doctor_id, current_appointment_id });
+  public async updateDoctorStatus(doctorId: string, currentAppointmentId: string | null): Promise<void> {
+    await invoke("update_doctor_status", { doctorId, currentAppointmentId });
   }
 
   // Data Management methods
@@ -499,16 +595,6 @@ class DataManager {
     return await invoke<string>("backup_db");
   }
 
-  // Mocked for DataManagement component to avoid errors for now
-  public getBackupHistory(): BackupEntry[] { return []; }
-  public exportToFile(): void {
-    this.createBackup().then(() => {
-      // In a real app we might trigger a save dialog, but here we just create a backup file in the app data dir
-    });
-  }
-  public exportToCSV(_dataType?: string): void {}
-  public async importFromFile(_file?: File) { return { success: true, message: "Imported" }; }
-  public restoreFromBackup(_id?: string) { return { success: true, message: "Restored" }; }
   public clearAllData(): void {}
 }
 

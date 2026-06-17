@@ -22,7 +22,7 @@ import {
   Mail,
   Calendar as CalendarIcon,
   AlertTriangle,
-  History,
+  History as HistoryIcon,
   FileText,
   Stethoscope,
   Send,
@@ -33,6 +33,9 @@ import {
   Clock,
   MapPin,
   Heart,
+  MoreVertical,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { dataManager, Patient, Appointment, Treatment, PatientNote, SickSheet } from "@/lib/dataManager";
 import { pdfGenerator } from "@/lib/pdfGenerator";
@@ -50,6 +53,12 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import AppointmentForm from "@/components/AppointmentForm";
 import TreatmentForm from "@/components/TreatmentForm";
 
@@ -72,7 +81,22 @@ const PatientSheet = () => {
 
   const [showAddAppointment, setShowAddAppointment] = useState(false);
   const [showAddTreatment, setShowAddTreatment] = useState(false);
+
+  const activeConsultation = appointments.find(a => a.status === 'in_consultation' && a.doctor_id === user?.id);
+
+  const handleMoveToCheckout = async () => {
+    if (!activeConsultation) return;
+    try {
+      await dataManager.updateAppointment(activeConsultation.id, { status: "awaiting_checkout" });
+      await dataManager.updateDoctorStatus(user?.id || "", null);
+      toast.success("Patient moved to checkout");
+      if (id) loadData(id);
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
   const [showAddSickSheet, setShowAddSickSheet] = useState(false);
+  const [editingNote, setEditingNote] = useState<PatientNote | null>(null);
 
   const [newSickSheet, setNewSickSheet] = useState({
     start_date: new Date().toISOString().split("T")[0],
@@ -142,6 +166,32 @@ const PatientSheet = () => {
     }
   };
 
+  const handleUpdateNote = async () => {
+    if (!editingNote || !patient) return;
+    try {
+      await dataManager.updatePatientNote(editingNote.id, editingNote.note_type, editingNote.note);
+      const updatedNotes = await dataManager.getPatientNotes(patient.id);
+      setPatientNotes(updatedNotes);
+      setEditingNote(null);
+      toast.success("Note updated");
+    } catch {
+      toast.error("Failed to update note");
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!patient) return;
+    if (!confirm("Are you sure you want to delete this clinical note?")) return;
+    try {
+      await dataManager.deletePatientNote(noteId);
+      const updatedNotes = await dataManager.getPatientNotes(patient.id);
+      setPatientNotes(updatedNotes);
+      toast.success("Note deleted");
+    } catch {
+      toast.error("Failed to delete note");
+    }
+  };
+
   const handleAddAppointment = async (appointmentData: Omit<Appointment, "id" | "created_at" | "updated_at">) => {
     try {
       await dataManager.addAppointment(appointmentData);
@@ -156,11 +206,11 @@ const PatientSheet = () => {
 
   const handleAddTreatment = async (treatmentData: Omit<Treatment, "id" | "created_at" | "updated_at">) => {
     try {
-      await dataManager.addTreatment(treatmentData);
+      const savedTreatment = await dataManager.addTreatment(treatmentData);
       setShowAddTreatment(false);
       const allTreatments = await dataManager.getTreatments();
       setTreatments(allTreatments.filter(t => t.patient_id === id));
-      toast.success("Treatment recorded");
+      return savedTreatment;
     } catch {
       toast.error("Failed to record treatment");
     }
@@ -256,6 +306,17 @@ const PatientSheet = () => {
             </Dialog>
           )}
 
+          {activeConsultation && (
+             <Button
+                size="sm"
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50 rounded-sm"
+                onClick={handleMoveToCheckout}
+             >
+                Move to Checkout
+             </Button>
+          )}
+
           {(user?.role === "DOCTOR" || user?.role === "ADMIN") && (
             <Dialog open={showAddTreatment} onOpenChange={setShowAddTreatment}>
               <DialogTrigger asChild>
@@ -269,6 +330,7 @@ const PatientSheet = () => {
                   <DialogTitle>Record New Treatment</DialogTitle>
                 </DialogHeader>
                 <TreatmentForm
+                  patient={patient}
                   onSave={handleAddTreatment}
                   onCancel={() => setShowAddTreatment(false)}
                 />
@@ -407,6 +469,9 @@ const PatientSheet = () => {
                                 mode="single"
                                 selected={parseISO(newSickSheet.start_date)}
                                 onSelect={(date) => handleSickSheetDateChange('start_date', date)}
+                                captionLayout="dropdown"
+                                startMonth={new Date(new Date().getFullYear() - 10, 0)}
+                                endMonth={new Date(new Date().getFullYear() + 10, 11)}
                               />
                             </PopoverContent>
                           </Popover>
@@ -425,6 +490,9 @@ const PatientSheet = () => {
                                 mode="single"
                                 selected={parseISO(newSickSheet.end_date)}
                                 onSelect={(date) => handleSickSheetDateChange('end_date', date)}
+                                captionLayout="dropdown"
+                                startMonth={new Date(new Date().getFullYear() - 10, 0)}
+                                endMonth={new Date(new Date().getFullYear() + 10, 11)}
                               />
                             </PopoverContent>
                           </Popover>
@@ -533,7 +601,7 @@ const PatientSheet = () => {
           {/* Clinical History Tabs / Timeline */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center px-1">
-              <History className="h-5 w-5 mr-2 text-primary" />
+              <HistoryIcon className="h-5 w-5 mr-2 text-primary" />
               Patient Clinical History
             </h2>
 
@@ -554,10 +622,31 @@ const PatientSheet = () => {
                     {/* Content card */}
                     <div className="w-[calc(100%-4rem)] md:w-[45%] p-4 rounded-sm border border-gray-100 bg-white shadow-sm">
                       <div className="flex items-center justify-between space-x-2 mb-1">
-                        <div className="font-bold text-gray-900 text-sm">
-                          {item.timelineType === 'note' ? (item as PatientNote).note_type : "Treatment: " + (item as Treatment).treatment}
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-gray-900 text-sm">
+                            {item.timelineType === 'note' ? (item as PatientNote).note_type : "Treatment: " + (item as Treatment).treatment}
+                          </div>
+                          {item.timelineType === 'note' && (user?.role === 'ADMIN' || user?.role === 'DOCTOR') && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6">
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={() => setEditingNote(item as PatientNote)}>
+                                  <Edit className="h-3.5 w-3.5 mr-2" />
+                                  Edit Note
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteNote(item.id)}>
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                  Delete Note
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
-                        <time className="font-mono text-xs font-medium text-primary bg-primary/5 px-2 py-0.5 rounded-sm">
+                        <time className="font-mono text-xs font-medium text-primary bg-primary/5 px-2 py-0.5 rounded-sm whitespace-nowrap">
                           {format(parseISO(item.created_at), "MMM d, yyyy")}
                         </time>
                       </div>
@@ -592,7 +681,7 @@ const PatientSheet = () => {
 
               {patientNotes.length === 0 && treatments.length === 0 && (
                 <div className="bg-gray-50 border border-dashed border-gray-200 rounded-sm p-12 text-center relative z-10">
-                  <History className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <HistoryIcon className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-400 font-medium italic">No clinical records found for this patient.</p>
                 </div>
               )}
@@ -600,6 +689,50 @@ const PatientSheet = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Note Dialog */}
+      <Dialog open={!!editingNote} onOpenChange={(open) => !open && setEditingNote(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Clinical Note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold uppercase text-gray-500">Note Category</Label>
+              <Select
+                value={editingNote?.note_type}
+                onValueChange={(val) => setEditingNote(prev => prev ? { ...prev, note_type: val } : null)}
+              >
+                <SelectTrigger className="h-9 text-sm rounded-sm">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {noteTypes.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold uppercase text-gray-500">Observation & Details</Label>
+              <Textarea
+                value={editingNote?.note}
+                onChange={(e) => setEditingNote(prev => prev ? { ...prev, note: e.target.value } : null)}
+                className="text-sm rounded-sm border-gray-200"
+                rows={5}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setEditingNote(null)} className="rounded-sm h-9 text-sm">
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateNote} className="bg-primary hover:bg-primary/90 text-white rounded-sm h-9 text-sm">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

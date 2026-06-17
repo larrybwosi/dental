@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CheckoutDialog } from "@/components/CheckoutDialog";
 
 const WaitingRoom = () => {
   const { user } = useAuth();
@@ -32,6 +33,8 @@ const WaitingRoom = () => {
   const [receptionFee, setReceptionFee] = useState<number>(0);
   const [requirePaymentBeforeAdmit, setRequirePaymentBeforeAdmit] = useState<boolean>(true);
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   useEffect(() => {
     loadData();
@@ -54,8 +57,14 @@ const WaitingRoom = () => {
       }
     });
 
+    // Background polling fallback for network reliability
+    const intervalId = setInterval(() => {
+      loadData();
+    }, 30000); // 30 seconds
+
     return () => {
       unlisten.then(f => f());
+      clearInterval(intervalId);
     };
   }, [user]);
 
@@ -81,6 +90,17 @@ const WaitingRoom = () => {
   };
 
   const handleAdmit = async (appt: Appointment) => {
+    // Check if patient is already in the active queue
+    const activeAppointment = appointments.find(a =>
+      a.patient_id === appt.patient_id &&
+      (a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout')
+    );
+
+    if (activeAppointment) {
+      toast.error(`${appt.patient_name} is already in the queue or in consultation.`);
+      return;
+    }
+
     if (requirePaymentBeforeAdmit && !appt.reception_fee_paid && !appt.reception_fee_waived) {
       toast.error("Reception fee must be paid or waived before admission");
       return;
@@ -116,12 +136,16 @@ const WaitingRoom = () => {
   };
 
   const handleRequestWaiver = async (appt: Appointment) => {
+    if (!appt.doctor_id) {
+      toast.error("A doctor must be assigned to the appointment to request a waiver");
+      return;
+    }
     try {
       await dataManager.createWaiverRequest({
         appointment_id: appt.id,
         patient_id: appt.patient_id,
         patient_name: appt.patient_name,
-        doctor_id: appt.doctor_id || "",
+        doctor_id: appt.doctor_id,
         requested_by: user?.full_name || "Reception",
       });
       toast.success("Waiver request sent to doctor");
@@ -168,29 +192,36 @@ const WaitingRoom = () => {
     }
   };
 
-  const handleCheckout = async (appt: Appointment) => {
-    // Check for pending payments (if any treatments were added)
-    const allPayments = await dataManager.getPayments();
-    const pendingPayments = allPayments.filter(p => p.patient_id === appt.patient_id && p.status === 'pending');
+  const handleCheckout = (appt: Appointment) => {
+    setSelectedAppointment(appt);
+    setShowCheckout(true);
+  };
 
-    if (pendingPayments.length > 0) {
-      toast.error("Patient has pending service fees. Please settle payments first.");
-      // In a real app, redirect to payments or open a dialog
-      return;
-    }
-
+  const handleCancelVisit = async (appt: Appointment) => {
+    if (!confirm(`Are you sure you want to cancel ${appt.patient_name}'s visit? This will remove them from the queue.`)) return;
     try {
-      await dataManager.updateAppointment(appt.id, { status: "completed" });
+      await dataManager.updateAppointment(appt.id, { status: "cancelled" });
       await dataManager.updateDoctorStatus(appt.doctor_id || "", null);
-      toast.success("Patient checked out successfully");
+      toast.success("Visit cancelled");
       loadData();
     } catch {
-      toast.error("Failed to checkout patient");
+      toast.error("Failed to cancel visit");
     }
   };
 
   return (
     <div className="space-y-6">
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed bottom-6 right-6 h-12 w-12 rounded-full shadow-lg bg-white border-primary/20 text-primary hover:bg-blue-50 z-50"
+        onClick={() => {
+          loadData();
+          toast.success("Data refreshed");
+        }}
+      >
+        <Users className="h-6 w-6" />
+      </Button>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div>
@@ -283,17 +314,17 @@ const WaitingRoom = () => {
 
         <TabsContent value="queue" className="mt-6">
           <div className="space-y-3">
-            {appointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation').map(appt => (
-              <Card key={appt.id} className={`border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden border-l-4 ${appt.status === 'in_consultation' ? 'border-l-green-500' : 'border-l-primary'}`}>
+            {appointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout').map(appt => (
+              <Card key={appt.id} className={`border border-gray-200 shadow-sm rounded-sm bg-white overflow-hidden border-l-4 ${appt.status === 'in_consultation' ? 'border-l-green-500' : appt.status === 'awaiting_checkout' ? 'border-l-blue-500' : 'border-l-primary'}`}>
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center space-x-4">
-                    <div className={`p-2 rounded-sm ${appt.status === 'in_consultation' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-primary'}`}>
-                      {appt.status === 'in_consultation' ? <Stethoscope className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                    <div className={`p-2 rounded-sm ${appt.status === 'in_consultation' ? 'bg-green-50 text-green-600' : appt.status === 'awaiting_checkout' ? 'bg-blue-50 text-blue-600' : 'bg-blue-50 text-primary'}`}>
+                      {appt.status === 'in_consultation' ? <Stethoscope className="h-5 w-5" /> : appt.status === 'awaiting_checkout' ? <CreditCard className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                     </div>
                     <div>
                       <h3 className="font-semibold text-sm text-gray-900">{appt.patient_name}</h3>
                       <p className="text-[11px] font-medium text-gray-500 uppercase tracking-tight">
-                        Doctor: <span className="text-gray-900">{appt.doctor_name}</span> | Status: <span className={`font-bold ${appt.status === 'in_consultation' ? 'text-green-600' : 'text-primary'}`}>{appt.status.replace('_', ' ').toUpperCase()}</span>
+                        Doctor: <span className="text-gray-900">{appt.doctor_name}</span> | Status: <span className={`font-bold ${appt.status === 'in_consultation' ? 'text-green-600' : appt.status === 'awaiting_checkout' ? 'text-blue-600' : 'text-primary'}`}>{appt.status.replace('_', ' ').toUpperCase()}</span>
                       </p>
                     </div>
                   </div>
@@ -302,8 +333,28 @@ const WaitingRoom = () => {
                     {user?.role === 'DOCTOR' && appt.status === 'admitted' && (
                       <Button size="sm" className="h-8 text-xs font-medium bg-primary text-white rounded-sm" onClick={() => handleCallPatient(appt)}>Call Patient</Button>
                     )}
-                    {user?.role === 'RECEPTION' && appt.status === 'in_consultation' && (
-                      <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-gray-200 rounded-sm" onClick={() => handleCheckout(appt)}>Checkout</Button>
+                    {(user?.role === 'RECEPTION' || user?.role === 'ADMIN') && appt.status === 'admitted' && (
+                       <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-sm"
+                        onClick={() => handleCancelVisit(appt)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    {(user?.role === 'RECEPTION' || user?.role === 'ADMIN') && (appt.status === 'in_consultation' || appt.status === 'awaiting_checkout') && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-gray-200 rounded-sm" onClick={() => handleCheckout(appt)}>Checkout</Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-sm"
+                          onClick={() => handleCancelVisit(appt)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
                     )}
                     {appt.status === 'in_consultation' && (
                        <Badge variant="outline" className="h-6 text-[10px] font-bold border-green-200 bg-green-50 text-green-700 uppercase px-2 rounded-sm">In Consultation</Badge>
@@ -312,7 +363,7 @@ const WaitingRoom = () => {
                 </CardContent>
               </Card>
             ))}
-            {appointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation').length === 0 && (
+            {appointments.filter(a => a.status === 'admitted' || a.status === 'in_consultation' || a.status === 'awaiting_checkout').length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
                 <p>Queue is empty</p>
@@ -330,7 +381,7 @@ const WaitingRoom = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm">Requested by {waiver.requested_by} for Doctor {waiver.doctor_id}</p>
-                  {user?.role === 'DOCTOR' && user.id === waiver.doctor_id || user?.role === 'ADMIN' ? (
+                  {(user?.role === 'DOCTOR' && user.id === waiver.doctor_id) || user?.role === 'ADMIN' ? (
                     <div className="flex gap-3">
                       <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleApproveWaiver(waiver)}>
                         <CheckCircle2 className="h-4 w-4 mr-2" /> Approve
@@ -340,7 +391,7 @@ const WaitingRoom = () => {
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">Only the assigned doctor can process this waiver.</p>
+                    <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">Only the assigned doctor or an Administrator can process this waiver.</p>
                   )}
                 </CardContent>
               </Card>
@@ -348,6 +399,12 @@ const WaitingRoom = () => {
           </div>
         </TabsContent>
       </Tabs>
+      <CheckoutDialog
+        open={showCheckout}
+        onOpenChange={setShowCheckout}
+        appointment={selectedAppointment}
+        onComplete={loadData}
+      />
     </div>
   );
 };

@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
+import { DayPicker, type DropdownProps } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import { buttonVariants, Button } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
@@ -13,17 +13,17 @@ function Calendar({
   className,
   classNames,
   showOutsideDays = true,
+  captionLayout = "dropdown",
   ...props
 }: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
+      captionLayout={captionLayout}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        month_caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
         nav: "space-x-1 flex items-center",
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
@@ -53,20 +53,69 @@ function Calendar({
         range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
         hidden: "invisible",
+        dropdown: "flex items-center",
+        dropdown_root: "relative inline-flex items-center",
+        dropdowns: "flex items-center justify-center gap-1 w-full",
+        months_dropdown: "relative inline-flex items-center",
+        years_dropdown: "relative inline-flex items-center",
+        month_caption: "flex justify-center pt-1 relative items-center h-9",
         ...classNames,
       }}
       components={{
-        Chevron: (props) => {
+        Chevron: ({ ...props }) => {
           if (props.orientation === 'left') {
             return <ChevronLeft className="h-4 w-4" />
           }
           return <ChevronRight className="h-4 w-4" />
-        }
+        },
+        Dropdown: ({ value, onChange, options, ...props }: DropdownProps) => {
+          const selected = options?.find((option) => option.value === value);
+          const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+            onChange?.(e);
+          };
+
+          // Filter out props that shouldn't reach the native select
+          const {
+            classNames: _classNames,
+            components: _components,
+            ...selectProps
+          } = props as DropdownProps & { [key: string]: unknown };
+          void _classNames;
+          void _components;
+
+          return (
+            <div className="relative inline-flex items-center">
+              <select
+                {...selectProps}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                value={value}
+                onChange={handleChange}
+              >
+                {options?.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 py-0 text-sm font-bold hover:bg-accent hover:text-accent-foreground flex items-center gap-1 whitespace-nowrap z-10 pointer-events-none"
+              >
+                {selected?.label || "Select"}
+                <ChevronRight className="h-3 w-3 rotate-90 opacity-50" />
+              </Button>
+            </div>
+          );
+        },
       }}
+      startMonth={props.startMonth || new Date(new Date().getFullYear() - 100, 0)}
+      endMonth={props.endMonth || new Date(new Date().getFullYear() + 20, 11)}
       {...props}
     />
   )
 }
+
 Calendar.displayName = "Calendar"
 
 export { Calendar }

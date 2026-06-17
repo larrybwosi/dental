@@ -59,10 +59,14 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
         .route("/sync/doctor_statuses", get(get_doctor_statuses_handler).post(post_doctor_statuses_handler))
         .route("/sync/settings", get(get_settings_handler).post(post_settings_handler))
         .route("/sync/services", get(get_services_handler).post(post_services_handler))
+        .route("/sync/insurance_providers", get(get_insurance_providers_handler).post(post_insurance_providers_handler))
+        .route("/sync/users", get(get_users_handler).post(post_users_handler))
+        .route("/sync/deletions", get(get_deletions_handler).post(post_deletions_handler))
         .route("/ws", get(ws_handler))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     let app = Router::new()
+        .route("/ping", get(ping_handler))
         .route("/pair", post(pair_handler))
         .merge(auth_router)
         .with_state(state);
@@ -79,7 +83,7 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
 
     info!("Hub server successfully bound to 0.0.0.0:{}", port);
 
-    // Start mDNS in a separate task so it doesn't block or crash the server
+    // Start mDNS and UDP broadcast in separate tasks
     tauri::async_runtime::spawn(async move {
         info!("Initializing mDNS discovery...");
         match start_mdns_discovery(port).await {
@@ -91,6 +95,13 @@ pub async fn start_hub_server(app_handle: AppHandle, code: String) -> Result<(),
                 }
             },
             Err(e) => warn!("mDNS discovery failed to start: {}. Hub will still be accessible via manual IP.", e),
+        }
+    });
+
+    tauri::async_runtime::spawn(async move {
+        info!("Starting UDP presence broadcast...");
+        if let Err(e) = start_udp_broadcast(port).await {
+            error!("UDP broadcast error: {}", e);
         }
     });
 
@@ -121,11 +132,20 @@ async fn start_mdns_discovery(port: u16) -> Result<ServiceDaemon, Box<dyn std::e
         };
         let host_name = format!("{}.local.", instance_name);
 
+        // Ensure we are passing a valid IP address string
+        let ip_addr = match ip_str.parse::<std::net::IpAddr>() {
+            Ok(ip) => ip.to_string(),
+            Err(_) => {
+                error!("Invalid IP address found: {}", ip_str);
+                continue;
+            }
+        };
+
         match ServiceInfo::new(
             service_type,
             &instance_name,
             &host_name,
-            ip_str.clone(),
+            ip_addr,
             port,
             properties.clone(),
         ) {
@@ -177,6 +197,23 @@ async fn auth_middleware(
         next.run(req).await
     } else {
         axum::http::StatusCode::UNAUTHORIZED.into_response()
+    }
+}
+
+async fn ping_handler() -> impl IntoResponse {
+    axum::http::StatusCode::OK
+}
+
+async fn start_udp_broadcast(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
+    socket.set_broadcast(true)?;
+
+    let broadcast_addr = "255.255.255.255:5005"; // Use 5005 to avoid macOS AirPlay conflict on 5000
+    let message = format!("DENTIST_HUB_ALIVE:{}", port);
+
+    loop {
+        let _ = socket.send_to(message.as_bytes(), broadcast_addr).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
 }
 
@@ -242,8 +279,8 @@ async fn post_patients_handler(
 
     for p in patients {
         let _ = conn.execute(
-            "INSERT INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')
+            "INSERT INTO patients (id, name, phone, email, date_of_birth, address, medical_history, allergies, emergency_contact, emergency_phone, preferred_payment_method, preferred_insurance_provider_id, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'synced')
              ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 phone = excluded.phone,
@@ -254,11 +291,15 @@ async fn post_patients_handler(
                 allergies = excluded.allergies,
                 emergency_contact = excluded.emergency_contact,
                 emergency_phone = excluded.emergency_phone,
-                updated_at = excluded.updated_at
+                preferred_payment_method = excluded.preferred_payment_method,
+                preferred_insurance_provider_id = excluded.preferred_insurance_provider_id,
+                updated_at = excluded.updated_at,
+                sync_status = 'synced'
              WHERE excluded.updated_at > patients.updated_at",
             rusqlite::params![
                 p.id, p.name, p.phone, p.email, p.date_of_birth, p.address,
                 p.medical_history, p.allergies, p.emergency_contact, p.emergency_phone,
+                p.preferred_payment_method, p.preferred_insurance_provider_id,
                 p.created_at, p.updated_at
             ],
         );
@@ -360,17 +401,21 @@ async fn post_payments_handler(
 
     for p in payments {
         let _ = conn.execute(
-            "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced')
+            "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, metadata, created_at, updated_at, insurance_provider_id, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'synced')
              ON CONFLICT(id) DO UPDATE SET
                 amount = excluded.amount,
                 status = excluded.status,
                 notes = excluded.notes,
-                updated_at = excluded.updated_at
+                metadata = excluded.metadata,
+                updated_at = excluded.updated_at,
+                insurance_provider_id = excluded.insurance_provider_id,
+                sync_status = 'synced'
              WHERE excluded.updated_at > payments.updated_at",
             rusqlite::params![
                 p.id, p.patient_id, p.patient_name, p.treatment_id, p.amount,
-                p.date, p.method, p.status, p.notes, p.created_at, p.updated_at
+                p.date, p.method, p.status, p.notes, p.metadata, p.created_at, p.updated_at,
+                p.insurance_provider_id
             ],
         );
     }
@@ -629,10 +674,16 @@ async fn post_sick_sheets_handler(
 
 async fn get_settings_handler(State(state): State<HubState>) -> impl IntoResponse {
     match crate::commands::settings::list_settings(state.app_handle) {
-        Ok(settings) => Json(SyncResponse {
-            data: settings,
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        }).into_response(),
+        Ok(settings) => {
+            let filtered: Vec<Setting> = settings
+                .into_iter()
+                .filter(|s| s.key != "network_mode" && s.key != "pairing_code" && s.key != "hub_address")
+                .collect();
+            Json(SyncResponse {
+                data: filtered,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            }).into_response()
+        }
         Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
     }
 }
@@ -647,9 +698,18 @@ async fn post_settings_handler(
     };
 
     for s in settings {
+        if s.key == "network_mode" || s.key == "pairing_code" || s.key == "hub_address" {
+            continue;
+        }
         let _ = conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            rusqlite::params![s.key, s.value],
+            "INSERT INTO settings (key, value, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, 'synced')
+             ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at,
+                sync_status = 'synced'
+             WHERE excluded.updated_at > settings.updated_at",
+            rusqlite::params![&s.key, &s.value, &s.updated_at],
         );
     }
     let _ = state.tx.send("settings_updated".to_string());
@@ -684,10 +744,202 @@ async fn post_services_handler(
                 standard_fee = excluded.standard_fee,
                 updated_at = excluded.updated_at
              WHERE excluded.updated_at > services.updated_at",
-            rusqlite::params![s.id, s.name, s.standard_fee, s.created_at, s.updated_at],
+            rusqlite::params![&s.id, &s.name, &s.standard_fee, &s.created_at, &s.updated_at],
         );
     }
     let _ = state.tx.send("services_updated".to_string());
+    axum::http::StatusCode::OK.into_response()
+}
+
+async fn get_insurance_providers_handler(State(state): State<HubState>) -> impl IntoResponse {
+    match crate::commands::insurance::list_insurance_providers(state.app_handle) {
+        Ok(providers) => Json(SyncResponse {
+            data: providers,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn post_insurance_providers_handler(
+    State(state): State<HubState>,
+    Json(providers): Json<Vec<crate::commands::insurance::InsuranceProvider>>,
+) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for p in providers {
+        let _ = conn.execute(
+            "INSERT INTO insurance_providers (id, name, pays_reception_fee, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                pays_reception_fee = excluded.pays_reception_fee,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > insurance_providers.updated_at",
+            rusqlite::params![&p.id, &p.name, &p.pays_reception_fee, &p.created_at, &p.updated_at],
+        );
+    }
+    let _ = state.tx.send("insurance_providers_updated".to_string());
+    axum::http::StatusCode::OK.into_response()
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DeletedRecord {
+    pub id: String,
+    pub table_name: String,
+    pub record_id: String,
+    pub deleted_at: String,
+}
+
+async fn get_deletions_handler(State(state): State<HubState>) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let mut stmt = match conn.prepare("SELECT id, table_name, record_id, deleted_at FROM deleted_records") {
+        Ok(s) => s,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let del_iter = stmt.query_map([], |row| {
+        Ok(DeletedRecord {
+            id: row.get(0)?,
+            table_name: row.get(1)?,
+            record_id: row.get(2)?,
+            deleted_at: row.get(3)?,
+        })
+    });
+
+    match del_iter {
+        Ok(iter) => {
+            let deletions: Vec<DeletedRecord> = iter.filter_map(|r| r.ok()).collect();
+            Json(SyncResponse {
+                data: deletions,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            }).into_response()
+        },
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn post_deletions_handler(
+    State(state): State<HubState>,
+    Json(deletions): Json<Vec<DeletedRecord>>,
+) -> impl IntoResponse {
+    let mut conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let tx = match conn.transaction() {
+        Ok(t) => t,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for d in deletions {
+        // Record deletion
+        let _ = tx.execute(
+            "INSERT INTO deleted_records (id, table_name, record_id, deleted_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, 'synced')
+             ON CONFLICT(id) DO NOTHING",
+            rusqlite::params![&d.id, &d.table_name, &d.record_id, &d.deleted_at],
+        );
+
+        // Perform actual deletion on Hub if not already deleted
+        let allowed_tables = vec!["patients", "appointments", "treatments", "payments", "patient_notes", "sick_sheets", "services", "insurance_providers", "users"];
+        if allowed_tables.contains(&d.table_name.as_str()) {
+            let query = format!("DELETE FROM {} WHERE id = ?1", d.table_name);
+            let _ = tx.execute(&query, [&d.record_id]);
+
+            if d.table_name == "treatments" {
+                let _ = tx.execute("DELETE FROM medications WHERE treatment_id = ?1", [&d.record_id]);
+            }
+        }
+    }
+
+    match tx.commit() {
+        Ok(_) => {
+            let _ = state.tx.send("deletions_synced".to_string());
+            axum::http::StatusCode::OK.into_response()
+        },
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserSync {
+    pub id: String,
+    pub username: String,
+    pub password_hash: String,
+    pub role: String,
+    pub full_name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+async fn get_users_handler(State(state): State<HubState>) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let mut stmt = match conn.prepare("SELECT id, username, password_hash, role, full_name, created_at, updated_at FROM users") {
+        Ok(s) => s,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let user_iter = stmt.query_map([], |row| {
+        Ok(UserSync {
+            id: row.get(0)?,
+            username: row.get(1)?,
+            password_hash: row.get(2)?,
+            role: row.get(3)?,
+            full_name: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    });
+
+    match user_iter {
+        Ok(iter) => {
+            let users: Vec<UserSync> = iter.filter_map(|r| r.ok()).collect();
+            Json(SyncResponse {
+                data: users,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            }).into_response()
+        },
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn post_users_handler(
+    State(state): State<HubState>,
+    Json(users): Json<Vec<UserSync>>,
+) -> impl IntoResponse {
+    let conn = match get_db_conn(&state.app_handle) {
+        Ok(c) => c,
+        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    for u in users {
+        let _ = conn.execute(
+            "INSERT INTO users (id, username, password_hash, role, full_name, created_at, updated_at, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'synced')
+             ON CONFLICT(id) DO UPDATE SET
+                username = excluded.username,
+                password_hash = excluded.password_hash,
+                role = excluded.role,
+                full_name = excluded.full_name,
+                updated_at = excluded.updated_at
+             WHERE excluded.updated_at > users.updated_at",
+            rusqlite::params![&u.id, &u.username, &u.password_hash, &u.role, &u.full_name, &u.created_at, &u.updated_at],
+        );
+    }
+    let _ = state.tx.send("users_updated".to_string());
     axum::http::StatusCode::OK.into_response()
 }
 

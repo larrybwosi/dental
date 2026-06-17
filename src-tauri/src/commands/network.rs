@@ -7,10 +7,13 @@ use crate::spoke::start_spoke_client;
 use crate::commands::settings::set_setting;
 use serde::{Deserialize, Serialize};
 use local_ip_address::list_afinet_netifas;
+use mdns_sd::{ServiceDaemon, ServiceEvent};
 
 pub struct GlobalState {
     pub mode: Mutex<String>, // "none", "hub", "spoke"
     pub pairing_code: Mutex<Option<String>>,
+    pub is_connected: Mutex<bool>,
+    pub connection_status: Mutex<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -110,14 +113,73 @@ pub fn start_as_spoke(app_handle: AppHandle, state: State<'_, GlobalState>, code
 
 #[command]
 pub fn get_connection_status(state: State<'_, GlobalState>) -> Result<String, String> {
-    let mode_guard = state.mode.lock().map_err(|e| e.to_string())?;
-    let mode = &*mode_guard;
+    let mode = state.mode.lock().map(|m| m.clone()).unwrap_or_else(|_| "none".to_string());
+    let status = state.connection_status.lock().map(|s| s.clone()).unwrap_or_else(|_| "Unknown".to_string());
+
     if mode == "hub" {
         return Ok("Server Online".to_string());
     }
-    if *mode == "spoke" {
-        // In a real app, you'd check actual connectivity
-        return Ok("Connected".to_string());
+    if mode == "spoke" {
+        return Ok(status);
     }
     Ok("Standalone".to_string())
+}
+
+#[command]
+pub async fn verify_hub_connection(code: String, manual_addr: Option<String>) -> Result<bool, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let addresses_to_try = if let Some(addr) = manual_addr {
+        vec![addr]
+    } else {
+        tokio::task::spawn_blocking(move || {
+            let mut addrs = Vec::new();
+            let mdns = ServiceDaemon::new().ok()?;
+            let service_type = "_dentist-hub._tcp.local.";
+            let receiver = mdns.browse(service_type).ok()?;
+
+            let start = std::time::Instant::now();
+            while start.elapsed() < std::time::Duration::from_secs(3) {
+                if let Ok(event) = receiver.recv_timeout(std::time::Duration::from_millis(500)) {
+                    if let ServiceEvent::ServiceResolved(info) = event {
+                        let port = info.get_port();
+                        for addr in info.get_addresses() {
+                            addrs.push(format!("{}:{}", addr, port));
+                        }
+                    }
+                }
+            }
+            Some(addrs)
+        }).await.map_err(|e| e.to_string())?.ok_or("Failed to initialize mDNS discovery")?
+    };
+
+    if addresses_to_try.is_empty() {
+        return Err("No Hub found on the network. Please ensure the Hub is running and firewall is off.".to_string());
+    }
+
+    for addr in addresses_to_try {
+        let res = client.post(format!("http://{}/pair", addr))
+            .json(&serde_json::json!({ "code": code }))
+            .send()
+            .await;
+
+        if let Ok(response) = res {
+            if response.status().is_success() {
+                return Ok(true);
+            }
+        }
+    }
+
+    Err("Found Hub(s) but could not pair. Please check your pairing code.".to_string())
+}
+
+#[command]
+pub fn restart_app() {
+    if let Ok(current_exe) = std::env::current_exe() {
+        let _ = std::process::Command::new(current_exe).spawn();
+        std::process::exit(0);
+    }
 }
