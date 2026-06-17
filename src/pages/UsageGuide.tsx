@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 /**
- * UsageGuide component provides a comprehensive manual for Skryme Dental.
+ * UsageGuide component provides a comprehensive manual for Skryme Health.
  */
 const UsageGuide = () => {
   return (
@@ -53,7 +53,7 @@ const UsageGuide = () => {
               Hub-and-Spoke Architecture
             </h2>
             <p className="text-sm text-gray-600 leading-relaxed">
-              Skryme Dental operates as a distributed system designed for maximum uptime. Unlike cloud-based systems, it lives entirely within your clinic's local network.
+              Skryme Health operates as a distributed system designed for maximum uptime. Unlike cloud-based systems, it lives entirely within your clinic's local network.
             </p>
 
             <div className="grid md:grid-cols-2 gap-6 mt-4">
@@ -116,7 +116,7 @@ const UsageGuide = () => {
                 <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold shrink-0">2</div>
                 <div className="space-y-1">
                   <p className="font-bold text-sm text-gray-800">Standard Setup (WiFi/Ethernet)</p>
-                  <p className="text-xs text-gray-600">Open Skryme Dental on the <strong>Spoke machine</strong>. During initial setup, select "Spoke Mode" and enter the <strong>Pairing Code</strong>. The system will attempt automatic discovery via mDNS.</p>
+                  <p className="text-xs text-gray-600">Open Skryme Health on the <strong>Spoke machine</strong>. During initial setup, select "Spoke Mode" and enter the <strong>Pairing Code</strong>. The system will attempt automatic discovery via mDNS.</p>
                 </div>
               </div>
 
@@ -137,7 +137,7 @@ const UsageGuide = () => {
               </div>
               <ul className="text-xs text-amber-700 space-y-2 list-disc pl-5">
                 <li><strong>Same Subnet:</strong> Ensure both Hub and Spoke are on the same network. If Hub is on Ethernet and Spoke on WiFi, ensure the router allows cross-communication.</li>
-                <li><strong>Windows Firewall:</strong> Ensure "Skryme Dental" is allowed through the Windows Firewall on the Hub machine. It needs to listen on the local network port.</li>
+                <li><strong>Windows Firewall:</strong> Ensure "Skryme Health" is allowed through the Windows Firewall on the Hub machine. It needs to listen on the local network port.</li>
                 <li><strong>Antivirus:</strong> Some third-party antivirus software blocks mDNS (discovery). Use the <strong>Manual IP Address</strong> if this occurs.</li>
                 <li><strong>Ethernet vs WiFi:</strong> Ethernet is significantly more stable. If using WiFi, ensure the signal is strong.</li>
               </ul>
@@ -331,7 +331,7 @@ const UsageGuide = () => {
             <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-sm">
               <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-tight">Clinical Note Categories</h4>
               <p className="text-[11px] text-indigo-700 mt-1">
-                Admins can configure Note Categories (e.g., Chief Complaints, Dental History, Observations). Using these ensures consistent record-keeping across all doctors.
+                Admins can configure Note Categories (e.g., Chief Complaints, Medical History, Observations). Using these ensures consistent record-keeping across all doctors.
               </p>
             </div>
 
@@ -371,7 +371,7 @@ const UsageGuide = () => {
                   Services & Fees
                 </h4>
                 <p className="text-xs text-gray-600">
-                  Configure the list of treatments your clinic provides. Set standard fees in Kenyan Shillings (KSH). These populate the dropdowns in treatment forms.
+                  Configure the list of treatments your clinic provides. Set standard fees in local currency. These populate the dropdowns in treatment forms.
                 </p>
               </div>
             </div>
@@ -413,7 +413,7 @@ const UsageGuide = () => {
       {/* Footer Support */}
       <div className="border-t border-gray-200 pt-8 text-center">
         <p className="text-sm text-gray-500">Need more help? Contact your system administrator or refer to the technical documentation.</p>
-        <p className="text-[10px] text-gray-400 mt-2 font-mono uppercase tracking-widest">Skryme Dental v2.0.0 • Local Network First Architecture</p>
+        <p className="text-[10px] text-gray-400 mt-2 font-mono uppercase tracking-widest">Skryme Health v2.0.0 • Local Network First Architecture</p>
       </div>
     </div>
   );

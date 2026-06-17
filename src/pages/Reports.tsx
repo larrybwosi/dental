@@ -165,7 +165,7 @@ const Reports = () => {
   const totalBilled = filteredTreats.reduce((sum, t) => sum + t.cost, 0);
 
   const formatCurrency = (amount: number) => {
-    return `KSH ${amount.toLocaleString()}`;
+    return `${amount.toLocaleString()}`;
   };
 
   return (

@@ -113,7 +113,7 @@ export const CheckoutDialog = ({ open, onOpenChange, appointment, onComplete }: 
               {pendingPayments.map((p, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-gray-600 truncate mr-4">{p.notes}</span>
-                  <span className="font-bold text-gray-900 whitespace-nowrap">KSH {p.amount.toLocaleString()}</span>
+                  <span className="font-bold text-gray-900 whitespace-nowrap">Fee {p.amount.toLocaleString()}</span>
                 </div>
               ))}
               {pendingPayments.length === 0 && !isLoading && (
@@ -124,7 +124,7 @@ export const CheckoutDialog = ({ open, onOpenChange, appointment, onComplete }: 
               <div className="pt-2 mt-2 border-t border-gray-200 flex justify-between items-center">
                 <span className="text-sm font-bold text-gray-900">Total Due</span>
                 <span className="text-lg font-black text-primary">
-                  KSH {totalDue.toLocaleString()}
+                  Fee {totalDue.toLocaleString()}
                 </span>
               </div>
             </div>

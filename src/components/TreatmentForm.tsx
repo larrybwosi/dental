@@ -366,7 +366,7 @@ const TreatmentForm = ({ treatment, patient, onSave, onCancel }: TreatmentFormPr
             <SelectContent>
               {services.map((service) => (
                 <SelectItem key={service.id} value={service.name}>
-                  {service.name} (KSH {service.standard_fee.toLocaleString()})
+                  {service.name} (Fee {service.standard_fee.toLocaleString()})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -484,7 +484,7 @@ const TreatmentForm = ({ treatment, patient, onSave, onCancel }: TreatmentFormPr
                   className="h-8 text-xs rounded-sm border-gray-200 flex-1"
                 />
                 <div className="relative w-32">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-bold">KSH</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-bold">Fee</span>
                   <Input
                     type="number"
                     placeholder="0.00"
@@ -506,7 +506,7 @@ const TreatmentForm = ({ treatment, patient, onSave, onCancel }: TreatmentFormPr
             ))}
             <div className="flex justify-end pr-10 pt-1">
               <p className="text-xs font-bold text-gray-900">
-                Total: KSH {feeItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}
+                Total: Fee {feeItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}
               </p>
             </div>
           </div>

@@ -117,7 +117,7 @@ const Treatments = () => {
   );
 
   const formatCurrency = (amount: number) => {
-    return `KSH ${amount.toLocaleString()}`;
+    return `${amount.toLocaleString()}`;
   };
 
   return (

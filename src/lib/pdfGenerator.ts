@@ -35,7 +35,7 @@ const getBranding = async (): Promise<ClinicBranding> => {
   ]);
 
   return {
-    name: name || "Dental Clinic",
+    name: name || "Medical Clinic",
     address: address || "",
     phone: phone || "",
     website: website || "",
@@ -139,7 +139,7 @@ export const pdfGenerator = {
     y += 0.3;
     doc.text(`Time: ${appointment.time}`, 1, y);
     y += 0.3;
-    doc.text(`Procedure: ${appointment.appointment_type}`, 1, y);
+    doc.text(`Visit Type: ${appointment.appointment_type}`, 1, y);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
@@ -528,7 +528,7 @@ export const pdfGenerator = {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("TOTAL COST:", 140, y);
-    doc.text(`KSH ${(treatment.cost || 0).toLocaleString()}`, 190, y, {
+    doc.text(`${(treatment.cost || 0).toLocaleString()}`, 190, y, {
       align: "right",
     });
     y += 25;
@@ -565,8 +565,8 @@ export const pdfGenerator = {
     const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
     const rows = payments.map(p => [
       p.date,
-      p.notes || "Dental Services",
-      `KSH ${(p.amount || 0).toLocaleString()}`
+      p.notes || "Clinical services",
+      `${(p.amount || 0).toLocaleString()}`
     ]);
 
     if (branding.thermalReceipts) {
@@ -648,7 +648,7 @@ export const pdfGenerator = {
       y = doc.lastAutoTable.finalY + 4;
       doc.setFont("helvetica", "bold");
       doc.text("TOTAL PAID:", margin, y);
-      doc.text(`KSH ${totalAmount.toLocaleString()}`, width - margin, y, { align: "right" });
+      doc.text(`${totalAmount.toLocaleString()}`, width - margin, y, { align: "right" });
       y += 6;
 
       doc.setFont("helvetica", "normal");
@@ -685,7 +685,7 @@ export const pdfGenerator = {
         startY: y,
         head: [["Date", "Description", "Amount"]],
         body: rows,
-        foot: [["", "TOTAL AMOUNT PAID", `KSH ${totalAmount.toLocaleString()}`]],
+        foot: [["", "TOTAL AMOUNT PAID", `${totalAmount.toLocaleString()}`]],
         theme: "striped",
         headStyles: { fillColor: [46, 125, 50], textColor: 255 },
         footStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
@@ -734,8 +734,8 @@ export const pdfGenerator = {
     const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
     const rows = payments.map(p => [
       p.date,
-      p.notes || "Dental Services",
-      `KSH ${(p.amount || 0).toLocaleString()}`
+      p.notes || "Clinical services",
+      `${(p.amount || 0).toLocaleString()}`
     ]);
 
     if (branding.thermalReceipts) {
@@ -817,7 +817,7 @@ export const pdfGenerator = {
       y = doc.lastAutoTable.finalY + 4;
       doc.setFont("helvetica", "bold");
       doc.text("TOTAL DUE:", margin, y);
-      doc.text(`KSH ${totalAmount.toLocaleString()}`, width - margin, y, { align: "right" });
+      doc.text(`${totalAmount.toLocaleString()}`, width - margin, y, { align: "right" });
       y += 10;
 
       doc.setFont("helvetica", "normal");
@@ -856,7 +856,7 @@ export const pdfGenerator = {
         startY: y,
         head: [["Date", "Description", "Amount"]],
         body: rows,
-        foot: [["", "TOTAL AMOUNT DUE", `KSH ${totalAmount.toLocaleString()}`]],
+        foot: [["", "TOTAL AMOUNT DUE", `${totalAmount.toLocaleString()}`]],
         theme: "striped",
         headStyles: { fillColor: [33, 33, 33], textColor: 255 },
         footStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
@@ -976,10 +976,10 @@ export const pdfGenerator = {
 
     // Right Column
     doc.setFont("helvetica", "bold");
-    doc.text(`Total Billed: KSH ${totalBilled.toLocaleString()}`, 110, y + 20);
+    doc.text(`Total Billed: ${totalBilled.toLocaleString()}`, 110, y + 20);
     doc.setTextColor(46, 125, 50); // Green
     doc.text(
-      `Total Collected: KSH ${totalRevenue.toLocaleString()}`,
+      `Total Collected: ${totalRevenue.toLocaleString()}`,
       110,
       y + 26,
     );
@@ -991,7 +991,7 @@ export const pdfGenerator = {
       y + 32,
     );
     doc.text(
-      `Avg. Revenue / Appointment: KSH ${completedAppts > 0 ? (totalRevenue / completedAppts).toFixed(0) : 0}`,
+      `Avg. Revenue / Appointment: ${completedAppts > 0 ? (totalRevenue / completedAppts).toFixed(0) : 0}`,
       110,
       y + 38,
     );
@@ -1044,7 +1044,7 @@ export const pdfGenerator = {
 
       autoTable(doc, {
         startY: y,
-        head: [["Date", "Time", "Patient", "Procedure", "Status"]],
+        head: [["Date", "Time", "Patient", "Visit Type", "Status"]],
         body: apptRows,
         theme: "striped",
         headStyles: { fillColor: [0, 120, 212] },
@@ -1099,7 +1099,7 @@ export const pdfGenerator = {
         p.date,
         p.patient_name,
         p.method.toUpperCase(),
-      `KSH ${(p.amount || 0).toLocaleString()}`,
+      `${(p.amount || 0).toLocaleString()}`,
       ]);
 
       autoTable(doc, {
