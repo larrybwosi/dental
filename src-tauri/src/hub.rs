@@ -401,19 +401,20 @@ async fn post_payments_handler(
 
     for p in payments {
         let _ = conn.execute(
-            "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, created_at, updated_at, insurance_provider_id, sync_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'synced')
+            "INSERT INTO payments (id, patient_id, patient_name, treatment_id, amount, date, method, status, notes, metadata, created_at, updated_at, insurance_provider_id, sync_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'synced')
              ON CONFLICT(id) DO UPDATE SET
                 amount = excluded.amount,
                 status = excluded.status,
                 notes = excluded.notes,
+                metadata = excluded.metadata,
                 updated_at = excluded.updated_at,
                 insurance_provider_id = excluded.insurance_provider_id,
                 sync_status = 'synced'
              WHERE excluded.updated_at > payments.updated_at",
             rusqlite::params![
                 p.id, p.patient_id, p.patient_name, p.treatment_id, p.amount,
-                p.date, p.method, p.status, p.notes, p.created_at, p.updated_at,
+                p.date, p.method, p.status, p.notes, p.metadata, p.created_at, p.updated_at,
                 p.insurance_provider_id
             ],
         );

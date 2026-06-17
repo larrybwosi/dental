@@ -135,6 +135,7 @@ export interface Payment {
   method: "cash" | "insurance";
   status: "pending" | "paid";
   notes: string;
+  metadata?: string;
   insurance_provider_id?: string;
   created_at: string;
   updated_at: string;
@@ -381,6 +382,7 @@ class DataManager {
       method: payment.method,
       status: payment.status,
       notes: payment.notes,
+      metadata: payment.metadata,
       insuranceProviderId: payment.insurance_provider_id
     });
   }
@@ -400,6 +402,7 @@ class DataManager {
       method: updates.method ?? current.method,
       status: updates.status ?? current.status,
       notes: updates.notes ?? current.notes,
+      metadata: updates.metadata ?? current.metadata,
       insuranceProviderId: updates.insurance_provider_id ?? current.insurance_provider_id,
     });
   }

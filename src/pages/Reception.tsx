@@ -41,8 +41,10 @@ import AppointmentForm from "@/components/AppointmentForm";
 import { pdfGenerator } from "@/lib/pdfGenerator";
 import { listen } from "@tauri-apps/api/event";
 import { cn, getLocalDate } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const Reception = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -339,6 +341,15 @@ const Reception = () => {
         </div>
 
         <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-white/10 h-8 px-2 rounded-sm border border-white/20 mr-2"
+            onClick={() => navigate("/insurance-claims")}
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            <span className="text-xs font-semibold uppercase">Insurance Claims</span>
+          </Button>
           <div className="flex items-center space-x-3 pr-4 border-r border-white/20">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-semibold leading-none">{user?.full_name}</p>

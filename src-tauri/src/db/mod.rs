@@ -203,6 +203,7 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
             method TEXT NOT NULL,
             status TEXT NOT NULL,
             notes TEXT,
+            metadata TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             sync_status TEXT DEFAULT 'synced',
@@ -378,6 +379,9 @@ pub fn init_schema(conn: &mut Connection) -> Result<(), Box<dyn std::error::Erro
 
         if !columns.contains(&"insurance_provider_id".to_string()) {
             let _ = conn.execute("ALTER TABLE payments ADD COLUMN insurance_provider_id TEXT", []);
+        }
+        if !columns.contains(&"metadata".to_string()) {
+            let _ = conn.execute("ALTER TABLE payments ADD COLUMN metadata TEXT", []);
         }
     }
 

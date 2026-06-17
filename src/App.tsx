@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import InitialSetup from "./pages/InitialSetup";
 import Reports from "./pages/Reports";
+import InsuranceClaims from "./pages/InsuranceClaims";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { invoke } from "@tauri-apps/api/core";
 import UserManagement from "./pages/UserManagement";
@@ -85,6 +86,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={user.role === 'DOCTOR' ? <DoctorDashboard /> : <Index />} />
           <Route path="/reception" element={<Reception />} />
+          <Route path="/insurance-claims" element={<InsuranceClaims />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientSheet />} />
           <Route path="/appointments" element={<Appointments />} />
